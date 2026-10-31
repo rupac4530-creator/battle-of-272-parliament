@@ -81,7 +81,7 @@ export const RulebookModal: React.FC<RulebookModalProps> = ({ isOpen, onClose })
 
   return (
     <div className="fixed inset-0 lg:absolute lg:inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl max-h-[85vh] glass border-2 border-[#ffd700] rounded-2xl p-5 overflow-y-auto shadow-2xl text-left">
+      <div className="w-full max-w-xl max-h-app-85 glass border-2 border-[#ffd700] rounded-2xl p-5 overflow-y-auto shadow-2xl text-left">
         <div className="flex items-center justify-between pb-3 border-b border-[#1e3327] mb-3">
           <h2 className="text-lg font-bold text-[#ffd700] font-serif flex items-center gap-2">
             <BookOpen size={20} className="text-[#ffd700]" />

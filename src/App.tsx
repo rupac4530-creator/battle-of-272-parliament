@@ -41,6 +41,8 @@ import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
 import { IntroLoadingScreen } from './components/IntroLoadingScreen';
+import { useDeviceLayout } from './hooks/useDeviceLayout';
+import { enterImmersive, exitImmersive, isFullscreen, canFullscreen } from './game/display';
 import {
   Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
   Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
@@ -73,46 +75,44 @@ export default function App() {
   const [activeDecisionTreeAction, setActiveDecisionTreeAction] = useState<string>('Strike');
   const [treeUtilityScores, setTreeUtilityScores] = useState<Record<string, number>>({});
 
-  // Mobile / Device Orientation & Adaptive Layout State
-  const [viewportDims, setViewportDims] = useState(() => {
-    if (typeof window === 'undefined') return { w: 1024, h: 768 };
-    return { w: window.innerWidth, h: window.innerHeight };
-  });
-
-  // Automatically default to rotated landscape format on phone/mobile held vertically!
-  const [isForceRotated, setIsForceRotated] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    const isPort = window.innerHeight > window.innerWidth && (window.innerWidth <= 850 || window.innerHeight <= 950);
-    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    return isPort && isMobile;
-  });
+  // Device / orientation layout (see hooks/useDeviceLayout.ts)
+  const { viewportDims, isForceRotated, isTouch, toggleRotate } = useDeviceLayout();
+  const [isFs, setIsFs] = useState<boolean>(() => typeof document !== 'undefined' && isFullscreen());
+  const fsTriedRef = useRef(false);
 
   const [isMobileTelemetryOpen, setIsMobileTelemetryOpen] = useState<boolean>(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(true);
 
-  // Monitor device orientation & window resize dynamically
+  // Keep the fullscreen flag in sync (Esc / system back / swipe can leave fullscreen)
   useEffect(() => {
-    const handleOrientation = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      setViewportDims({ w, h });
-      const isPort = h > w && (w <= 850 || h <= 950);
-      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const sync = () => setIsFs(isFullscreen());
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('webkitfullscreenchange', sync);
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('webkitfullscreenchange', sync);
+    };
+  }, []);
 
-      // If user physically turned phone to landscape (w > h), native landscape is active!
-      if (w > h) {
-        setIsForceRotated(false);
-      } else if (isMobile && isPort) {
-        // If on mobile phone in portrait, automatically ensure rotated format!
-        setIsForceRotated(true);
+  // Phones: on the first tap, go fullscreen and lock landscape where the browser allows
+  // it (Android Chrome). Where it does not (iPhone Safari) the CSS rotation is used.
+  useEffect(() => {
+    if (!isTouch || !canFullscreen()) return;
+    const onFirstTap = () => {
+      if (fsTriedRef.current) return;
+      fsTriedRef.current = true;
+      if (Math.min(window.innerWidth, window.innerHeight) <= 500 && !isFullscreen()) {
+        void enterImmersive();
       }
     };
-    window.addEventListener('resize', handleOrientation);
-    window.addEventListener('orientationchange', handleOrientation);
-    return () => {
-      window.removeEventListener('resize', handleOrientation);
-      window.removeEventListener('orientationchange', handleOrientation);
-    };
+    window.addEventListener('pointerup', onFirstTap, { once: true });
+    return () => window.removeEventListener('pointerup', onFirstTap);
+  }, [isTouch]);
+
+  const toggleFullscreen = useCallback(async () => {
+    if (isFullscreen()) await exitImmersive();
+    else await enterImmersive();
+    setIsFs(isFullscreen());
   }, []);
 
   // Mutable Game Simulation Refs (outside React reconciliation)
@@ -1103,7 +1103,7 @@ export default function App() {
           ref={canvasRef}
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
-          className="w-full h-full object-contain max-h-screen block"
+          className="w-full h-full object-contain max-h-full block"
         />
 
         {/* Mobile & Tablet Telemetry Drawer Toggle Button */}
@@ -1111,7 +1111,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsMobileTelemetryOpen(true)}
-            className="absolute top-2 left-2 z-40 px-3 py-1.5 rounded-full glass border border-[#ffd700] text-[#ffd700] text-xs font-bold shadow-xl flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all lg:hidden"
+            className="absolute hud-tl z-40 px-3 py-1.5 rounded-full glass border border-[#ffd700] text-[#ffd700] text-xs font-bold shadow-xl flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all lg:hidden"
             aria-label="Open AI Telemetry Console"
           >
             <Brain size={14} className="text-[#56d364]" />
@@ -1126,24 +1126,38 @@ export default function App() {
             type="button"
             onClick={() => setIsDesktopSidebarOpen(prev => !prev)}
             title={isDesktopSidebarOpen ? 'Enter Theater Mode (Hide Sidebar)' : 'Show Speaker AI Sidebar'}
-            className="absolute top-2 left-2 z-40 px-3 py-1.5 rounded-full glass border border-[#1e3327] hover:border-[#ffd700]/70 text-[#8ea396] hover:text-white text-xs font-bold shadow-xl hidden lg:flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all"
+            className="absolute hud-tl z-40 px-3 py-1.5 rounded-full glass border border-[#1e3327] hover:border-[#ffd700]/70 text-[#8ea396] hover:text-white text-xs font-bold shadow-xl hidden lg:flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all"
           >
             {isDesktopSidebarOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
             <span>{isDesktopSidebarOpen ? 'Theater View' : 'Speaker AI'}</span>
           </button>
         )}
 
-        {/* Quick Orientation / Landscape Rotation Toggle Button */}
+        {/* Quick Orientation / Landscape Rotation + Fullscreen buttons */}
         {gameState === 'play' && (
-          <button
-            type="button"
-            onClick={() => setIsForceRotated(prev => !prev)}
-            title="Toggle 90° Landscape Rotation"
-            className="absolute top-2 right-14 z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ff9933] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
-            aria-label="Rotate View"
-          >
-            <RotateCw size={17} />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={toggleRotate}
+              title="Toggle 90° Landscape Rotation"
+              className="absolute hud-tr-2 z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ff9933] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
+              aria-label="Rotate View"
+            >
+              <RotateCw size={17} />
+            </button>
+            {canFullscreen() && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                title={isFs ? 'Exit Fullscreen' : 'Fullscreen'}
+                className="absolute z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ffd700] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
+                style={{ top: 'max(0.5rem, var(--sa-top))', right: 'calc(max(0.5rem, var(--sa-right)) + 6rem)' }}
+                aria-label={isFs ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+              >
+                <Maximize2 size={16} />
+              </button>
+            )}
+          </>
         )}
 
         {/* Contextual Rule Coach Banner */}
@@ -1191,7 +1205,7 @@ export default function App() {
             <button
               type="button"
               onClick={togglePause}
-              className="absolute top-2 right-2 z-40 w-10 h-10 rounded-full glass border-2 border-[#ffd700] text-[#ffd700] font-black text-base shadow-xl active:scale-90 flex items-center justify-center transition-all hover:scale-110"
+              className="absolute hud-tr z-40 w-10 h-10 rounded-full glass border-2 border-[#ffd700] text-[#ffd700] font-black text-base shadow-xl active:scale-90 flex items-center justify-center transition-all hover:scale-110"
               aria-label="Pause"
             >
               {isPaused ? <Play size={18} /> : <Pause size={18} />}
@@ -1224,7 +1238,9 @@ export default function App() {
             onOpenRulebook={() => setIsRulebookOpen(true)}
             onReplayIntro={() => setIsLoadingIntro(true)}
             isForceRotated={isForceRotated}
-            onToggleRotate={() => setIsForceRotated(p => !p)}
+            onToggleRotate={toggleRotate}
+            isFullscreen={isFs}
+            onToggleFullscreen={canFullscreen() ? toggleFullscreen : undefined}
           />
         )}
 

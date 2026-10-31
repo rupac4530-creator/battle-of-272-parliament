@@ -59,7 +59,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         />
       ))}
 
-      <div className="w-full max-w-lg max-h-[92vh] overflow-y-auto glass border-2 border-[#ffd700] rounded-2xl p-4 sm:p-6 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative">
+      <div className="w-full max-w-lg max-h-app-92 overflow-y-auto glass border-2 border-[#ffd700] rounded-2xl p-4 sm:p-6 text-center shadow-2xl animate-in fade-in zoom-in-95 duration-200 relative">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#138808]/20 border border-[#138808] text-[#56d364] text-[11px] font-black uppercase tracking-wider rounded-full mb-2">
           <Trophy size={13} />
           SESSION ADJOURNED

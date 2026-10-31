@@ -59,7 +59,10 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
   const knobRef = useRef<HTMLDivElement | null>(null);
   const pidRef = useRef<number | null>(null);
 
-  const isMobileScreen = typeof window !== 'undefined' && (window.innerHeight <= 520 || window.innerWidth <= 768);
+  // Size controls from the game area the player actually sees (swapped when the UI is rotated)
+  const areaH = typeof window !== 'undefined' ? (isForceRotated ? window.innerWidth : window.innerHeight) : 768;
+  const areaW = typeof window !== 'undefined' ? (isForceRotated ? window.innerHeight : window.innerWidth) : 1024;
+  const isMobileScreen = areaH <= 520 || areaW <= 768;
   const compact = variant !== 'split' || isMobileScreen;
   const stick = compact ? (isMobileScreen ? 88 : 96) : 124;
   const big = compact ? (isMobileScreen ? 48 : 52) : 68;
@@ -155,9 +158,9 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
   return (
     <div
       style={{
-        paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom, 6px))',
-        paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 8px))',
-        paddingRight: 'max(0.5rem, env(safe-area-inset-right, 8px))'
+        paddingBottom: 'max(0.25rem, var(--sa-bottom, 6px))',
+        paddingLeft: 'max(0.5rem, var(--sa-left, 8px))',
+        paddingRight: 'max(0.5rem, var(--sa-right, 8px))'
       }}
       className={`absolute bottom-1 sm:bottom-3 flex items-end pointer-events-none z-30 select-none ${layout}`}
     >

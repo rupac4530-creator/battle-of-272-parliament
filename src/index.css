@@ -164,13 +164,45 @@
   z-index: 50 !important;
 }
 
-/* Safe area insets for notches & home bars on mobile devices */
-.safe-p-all {
-  padding-top: max(0.5rem, env(safe-area-inset-top));
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-  padding-left: max(0.75rem, env(safe-area-inset-left));
-  padding-right: max(0.75rem, env(safe-area-inset-right));
+/* Safe-area insets, remapped for the rotated layout.
+   env(safe-area-inset-*) always describes the PHYSICAL screen edges. When the UI is
+   turned 90 degrees (.force-landscape-container) the edges swap, so every piece of
+   UI uses --sa-* instead of env() directly. */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sa-top: var(--sat);
+  --sa-right: var(--sar);
+  --sa-bottom: var(--sab);
+  --sa-left: var(--sal);
+  /* Size of the game area as the player sees it. useDeviceLayout() keeps these in
+     sync (they swap when rotated). Plain vh/vw would keep measuring the physical screen. */
+  --app-w: 100vw;
+  --app-h: 100dvh;
 }
+.force-landscape-container {
+  --sa-top: var(--sar);
+  --sa-right: var(--sab);
+  --sa-bottom: var(--sal);
+  --sa-left: var(--sat);
+}
+.safe-p-all {
+  padding-top: max(0.5rem, var(--sa-top));
+  padding-bottom: max(0.5rem, var(--sa-bottom));
+  padding-left: max(0.75rem, var(--sa-left));
+  padding-right: max(0.75rem, var(--sa-right));
+}
+
+/* On-screen buttons that must stay clear of notches and rounded corners */
+.hud-tl { top: max(0.5rem, var(--sa-top)); left: max(0.5rem, var(--sa-left)); }
+.hud-tr { top: max(0.5rem, var(--sa-top)); right: max(0.5rem, var(--sa-right)); }
+.hud-tr-2 { top: max(0.5rem, var(--sa-top)); right: calc(max(0.5rem, var(--sa-right)) + 3rem); }
+
+/* Heights that follow the game area (works rotated or not), instead of vh */
+.max-h-app-92 { max-height: calc(var(--app-h) * 0.92); }
+.max-h-app-85 { max-height: calc(var(--app-h) * 0.85); }
 
 html, body {
   margin: 0;
@@ -182,4 +214,13 @@ html, body {
   -webkit-touch-callout: none;
   touch-action: manipulation;
 }
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
 
+/* Short landscape screens (phones turned sideways): tighten menus so nothing is cut off */
+@media (orientation: landscape) and (max-height: 480px) {
+  .max-h-app-92, .max-h-app-85 { max-height: calc(var(--app-h) * 0.96); }
+}
