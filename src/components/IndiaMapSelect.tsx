@@ -36,6 +36,9 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   isFullscreen = false,
   onToggleFullscreen
 }) => {
+  // Height of the game area as the player sees it (swapped when the UI is rotated)
+  const areaH = typeof window !== 'undefined' ? (isForceRotated ? window.innerWidth : window.innerHeight) : 768;
+  const compact = areaH <= 480;
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -73,7 +76,7 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   const menuBg = `${base}/menu-bg.jpg`;
 
   return (
-    <div className="fixed inset-0 lg:absolute lg:inset-0 z-50 flex flex-col items-center justify-between p-2 sm:p-4 lg:p-5 overflow-y-auto relative bg-[#040906] safe-p-all">
+    <div className="absolute inset-0 z-50 flex flex-col items-center justify-between p-2 sm:p-4 lg:p-5 overflow-y-auto bg-[#040906] safe-p-all">
       {/* Astronaut Modi Cinematic Background (First Page Only) */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <img
@@ -90,11 +93,13 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
       <div className="relative z-10 flex flex-col items-center justify-between w-full h-full min-h-0">
         {/* Title Header */}
         <div className="text-center max-w-2xl my-0.5 sm:my-1 shrink-0">
-          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 glass border border-[#138808]/60 text-[#56d364] text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-full mb-1">
-            <Landmark size={12} className="text-[#ffd700]" />
-            संसद्-भवनम् • THE PARLIAMENT HOUSE
-          </div>
-          <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-gradient-gold tracking-tight font-serif">
+          {!compact && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 glass border border-[#138808]/60 text-[#56d364] text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-full mb-1">
+              <Landmark size={12} className="text-[#ffd700]" />
+              संसद्-भवनम् • THE PARLIAMENT HOUSE
+            </div>
+          )}
+          <h1 className={`${compact ? 'text-sm' : 'text-lg sm:text-2xl lg:text-3xl'} font-extrabold text-gradient-gold tracking-tight font-serif`}>
             CHOOSE YOUR NETA — MAP OF INDIA
           </h1>
           <p className="text-[#8ea396] text-[10px] sm:text-xs mt-0.5 hidden xs:block">
@@ -348,12 +353,12 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
             type="button"
             data-start="true"
             onClick={onStartGame}
-            className="w-full py-2.5 sm:py-3.5 px-4 sm:px-6 rounded-xl text-xs sm:text-base font-extrabold text-white bg-gradient-to-r from-[#ff9933] via-[#e65100] to-[#b71c1c] border-2 border-[#ffd700] shadow-[0_4px_30px_rgba(255,153,51,0.4)] hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 btn-shimmer"
+            className={`w-full ${compact ? 'py-1.5' : 'py-2.5 sm:py-3.5'} px-4 sm:px-6 rounded-xl text-xs sm:text-base font-extrabold text-white bg-gradient-to-r from-[#ff9933] via-[#e65100] to-[#b71c1c] border-2 border-[#ffd700] shadow-[0_4px_30px_rgba(255,153,51,0.4)] hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 btn-shimmer`}
           >
             <span className="tracking-wide">ENTER THE LOK SABHA CHAMBER</span>
             <Swords size={18} />
           </button>
-          <div className="text-[9.5px] sm:text-[10.5px] text-[#8ea396] mt-1">
+          <div className={`text-[9.5px] sm:text-[10.5px] text-[#8ea396] mt-1 ${compact ? 'hidden' : ''}`}>
             Press <kbd className="px-1.5 py-0.5 glass border border-[#2d4737] rounded text-white font-mono">Enter</kbd> or{' '}
             <kbd className="px-1.5 py-0.5 glass border border-[#2d4737] rounded text-white font-mono">Space</kbd> to Launch Session
           </div>
