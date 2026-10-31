@@ -250,7 +250,8 @@ export function playRealPoliticianVoice(politicianId: string): boolean {
   if (typeof window === 'undefined') return false;
   if (!isVoiceEnabled) return false;
 
-  const soundPath = `/voices/${politicianId}.mp3`;
+  const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+  const soundPath = `${base}/voices/${politicianId}.mp3`;
 
   try {
     let audio = audioCache[soundPath];

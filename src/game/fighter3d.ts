@@ -49,8 +49,9 @@ async function loadModi() {
   try {
     const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
     const mgr = new T.LoadingManager();
-    mgr.setURLModifier((u: string) => (/\.(jpe?g|png)$/i.test(u) ? '/models/modi/textures/' + u.split(/[\\/]/).pop() : u));
-    new FBXLoader(mgr).load('/models/modi/modi.fbx', (obj: any) => {
+    const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+    mgr.setURLModifier((u: string) => (/\.(jpe?g|png)$/i.test(u) ? `${base}/models/modi/textures/` + u.split(/[\\/]/).pop() : u));
+    new FBXLoader(mgr).load(`${base}/models/modi/modi.fbx`, (obj: any) => {
       const wrap = new T.Group(); wrap.add(obj);
       let box = new T.Box3().setFromObject(obj);
       obj.scale.multiplyScalar(1.82 / (box.max.y - box.min.y));
