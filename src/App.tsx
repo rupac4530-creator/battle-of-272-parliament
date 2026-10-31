@@ -40,6 +40,11 @@ import { AIDecisionInspector } from './components/AIDecisionInspector';
 import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
+import {
+  Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
+  Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
+  Briefcase, Scroll, Play, Pause, MapIcon, Github, X
+} from 'lucide-react';
 
 const TAU = Math.PI * 2;
 const POWERUP_TYPES = ['case', 'cup', 'gavel', 'mic'] as const;
@@ -1031,17 +1036,17 @@ export default function App() {
 
         {/* Contextual Rule Coach Banner */}
         {coachTip && isCoachOn && gameState === 'play' && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-[#0d1812]/95 border-2 border-[#ffd700] rounded-full px-4 py-1.5 shadow-2xl flex items-center gap-2.5 z-30 max-w-[90%] animate-in fade-in slide-in-from-top duration-300">
-            <span className="bg-[#ffd700] text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-              RULE COACH
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 glass border-2 border-[#ffd700] rounded-full px-4 py-1.5 shadow-2xl flex items-center gap-2.5 z-30 max-w-[90%] animate-in fade-in slide-in-from-top duration-300">
+            <span className="bg-[#ffd700] text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+              <GraduationCap size={11} /> RULE COACH
             </span>
             <span className="text-xs font-semibold text-white truncate">{coachTip}</span>
             <button
               type="button"
               onClick={() => setCoachTip(null)}
-              className="text-[#8ea396] hover:text-white font-bold text-xs ml-1"
+              className="text-[#8ea396] hover:text-white font-bold text-xs ml-1 hover:bg-white/10 rounded-full p-0.5 transition"
             >
-              ✕
+              <X size={12} />
             </button>
           </div>
         )}
@@ -1072,16 +1077,20 @@ export default function App() {
             <button
               type="button"
               onClick={togglePause}
-              className="absolute top-2 right-2 z-40 w-10 h-10 rounded-full bg-[#0d1812]/90 border-2 border-[#ffd700] text-[#ffd700] font-black text-base shadow-xl active:scale-90"
+              className="absolute top-2 right-2 z-40 w-10 h-10 rounded-full glass border-2 border-[#ffd700] text-[#ffd700] font-black text-base shadow-xl active:scale-90 flex items-center justify-center transition-all hover:scale-110"
               aria-label="Pause"
             >
-              {isPaused ? '▶' : '⏸'}
+              {isPaused ? <Play size={18} /> : <Pause size={18} />}
             </button>
             {isPaused && (
               <div className="absolute inset-0 z-30 bg-black/55 flex flex-col items-center justify-center gap-3">
-                <div className="text-3xl font-extrabold text-[#ffd700] font-serif">HOUSE ADJOURNED</div>
-                <button type="button" onClick={togglePause} className="px-8 py-2.5 rounded-xl bg-[#ff9933] border-2 border-[#ffd700] text-black font-black">▶ RESUME</button>
-                <button type="button" onClick={() => { togglePause(); setGameState('menu'); }} className="px-8 py-2 rounded-xl bg-[#15221b] border border-[#1e3327] text-[#f5eedb] font-bold">🗺️ Back to Map</button>
+                <div className="text-3xl font-extrabold text-gradient-gold font-serif">HOUSE ADJOURNED</div>
+                <button type="button" onClick={togglePause} className="px-8 py-2.5 rounded-xl bg-[#ff9933] border-2 border-[#ffd700] text-black font-black flex items-center gap-2 hover:scale-105 transition-all btn-shimmer">
+                  <Play size={18} /> RESUME
+                </button>
+                <button type="button" onClick={() => { togglePause(); setGameState('menu'); }} className="px-8 py-2 rounded-xl glass border border-[#1e3327] text-[#f5eedb] font-bold flex items-center gap-2 hover:scale-105 transition-all">
+                  <MapIcon size={16} /> Back to Map
+                </button>
               </div>
             )}
           </>
@@ -1133,21 +1142,18 @@ export default function App() {
       <aside className="lg:flex-[32_1_0] w-full lg:max-w-[420px] bg-[#0f1a14] border-t-2 lg:border-t-0 lg:border-l-2 border-[#1e3327] flex flex-col p-3 gap-2 overflow-y-auto z-20 shrink-0">
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-[#1e3327]">
-          <h1 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif">
-            <span>🏛️</span> Speaker AI Telemetry
+          <h1 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif tracking-tight">
+            <Landmark size={16} className="text-[#ffd700]" /> Speaker AI Telemetry
           </h1>
           <div className="flex items-center gap-2">
             <a
               href="https://github.com/rupac4530-creator/battle-of-272-parliament"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#8ea396] hover:text-[#56d364] transition flex items-center gap-1 text-[10px] font-mono"
+              className="text-[#8ea396] hover:text-[#56d364] transition-all flex items-center gap-1 text-[10px] font-mono hover:scale-105"
               title="GitHub Repository"
             >
-              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-              GitHub
+              <Github size={13} /> GitHub
             </a>
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
               {is2PlayerMode ? 'PVP REFEREE' : 'SELF-EXPLAINING CODE'}
@@ -1156,9 +1162,9 @@ export default function App() {
         </div>
 
         {/* Real-Time Live Decision Tree Visualizer */}
-        <div className="bg-[#08120d] border border-[#1e3327] rounded-xl p-2.5">
+        <div className="glass-dark border border-[#1e3327] rounded-xl p-2.5">
           <div className="flex justify-between items-center text-[10px] font-bold text-[#ffd700] mb-1.5">
-            <span>🧠 LIVE DECISION TREE</span>
+            <span className="flex items-center gap-1.5"><Brain size={13} /> LIVE DECISION TREE</span>
             <span className="text-[#56d364] font-mono">
               {activeDecisionTreeAction.toUpperCase()} (
               {treeUtilityScores[activeDecisionTreeAction] >= 0 ? '+' : ''}
@@ -1167,27 +1173,27 @@ export default function App() {
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             {[
-              { id: 'Strike', label: '⚔️ Strike' },
-              { id: 'Special', label: '⚡ Special' },
-              { id: 'Super', label: '🔥 Super' },
-              { id: 'Block', label: '🛡️ Block' },
-              { id: 'Approach', label: '🏃 Approach' },
-              { id: 'Retreat', label: '↩️ Retreat' },
-              { id: 'Podium', label: '🏛️ 272 Seats' },
-              { id: 'Pickup', label: '☕ Canteen' }
+              { id: 'Strike', label: 'Strike', icon: <Swords size={11} /> },
+              { id: 'Special', label: 'Special', icon: <Zap size={11} /> },
+              { id: 'Super', label: 'Super', icon: <Flame size={11} /> },
+              { id: 'Block', label: 'Block', icon: <Shield size={11} /> },
+              { id: 'Approach', label: 'Approach', icon: <ArrowLeftRight size={11} /> },
+              { id: 'Retreat', label: 'Retreat', icon: <Undo2 size={11} /> },
+              { id: 'Podium', label: '272 Seats', icon: <Landmark size={11} /> },
+              { id: 'Pickup', label: 'Canteen', icon: <Coffee size={11} /> }
             ].map(node => {
               const isActive = activeDecisionTreeAction === node.id;
               const val = Math.round(treeUtilityScores[node.id] ?? 0);
               return (
                 <div
                   key={node.id}
-                  className={`px-2 py-1 rounded text-[10px] border flex justify-between items-center transition-all ${
+                  className={`px-2 py-1.5 rounded-lg text-[10px] border flex justify-between items-center transition-all duration-200 ${
                     isActive
-                      ? 'bg-[#ffd700]/15 border-[#ffd700] text-white font-bold shadow-[0_0_8px_rgba(255,215,0,0.3)]'
-                      : 'bg-[#0d1a13] border-[#1a2e22] text-[#8ea396]'
+                      ? 'glass border-[#ffd700] text-white font-bold shadow-[0_0_12px_rgba(255,215,0,0.25)]'
+                      : 'bg-[#0d1a13] border-[#1a2e22] text-[#8ea396] hover:border-[#2a4e3a]'
                   }`}
                 >
-                  <span>{node.label}</span>
+                  <span className="flex items-center gap-1">{node.icon} {node.label}</span>
                   <span className={`font-mono font-bold ${isActive ? 'text-[#56d364]' : 'text-[#8ea396]'}`}>
                     {val >= 0 ? `+${val}` : val}
                   </span>
@@ -1207,9 +1213,9 @@ export default function App() {
                 setIsInspectorOpen(true);
               }
             }}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#1c2e24] hover:bg-[#294234] border border-[#ffd700]/40 text-[#ffd700] transition flex items-center justify-center gap-1"
+            className="px-2.5 py-1.5 rounded-lg text-xs font-bold glass hover:bg-[#294234] border border-[#ffd700]/40 text-[#ffd700] transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5"
           >
-            <span>🧠</span> Why Did You Do That?
+            <Brain size={14} /> Why Did You Do That?
           </button>
 
           <button
@@ -1219,33 +1225,33 @@ export default function App() {
               setIsVoiceOn(next);
               setVoiceEnabled(next);
             }}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
               isVoiceOn
                 ? 'bg-[#1f4e35] border-[#56d364] text-white'
-                : 'bg-[#1c2e24] border-[#1e3327] text-[#8ea396]'
+                : 'glass border-[#1e3327] text-[#8ea396]'
             }`}
           >
-            🎙️ AI Voice: {isVoiceOn ? 'ON' : 'OFF'}
+            <Mic size={14} /> AI Voice: {isVoiceOn ? 'ON' : 'OFF'}
           </button>
 
           <button
             type="button"
             onClick={() => setIsCoachOn(!isCoachOn)}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
               isCoachOn
                 ? 'bg-[#1f4e35] border-[#56d364] text-white'
-                : 'bg-[#1c2e24] border-[#1e3327] text-[#8ea396]'
+                : 'glass border-[#1e3327] text-[#8ea396]'
             }`}
           >
-            🎓 Rule Coach: {isCoachOn ? 'ON' : 'OFF'}
+            <GraduationCap size={14} /> Rule Coach: {isCoachOn ? 'ON' : 'OFF'}
           </button>
 
           <button
             type="button"
             onClick={() => setIsRulebookOpen(true)}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-[#1c2e24] hover:bg-[#294234] border border-[#1e3327] text-[#f5eedb] transition"
+            className="px-2.5 py-1.5 rounded-lg text-xs font-bold glass hover:bg-[#294234] border border-[#1e3327] text-[#f5eedb] transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5"
           >
-            📖 Rulebook
+            <BookOpen size={14} /> Rulebook
           </button>
         </div>
 
@@ -1253,24 +1259,24 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsGamepadVisible(!isGamepadVisible)}
-            className={`flex-1 py-1 rounded-lg text-xs font-bold border transition ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
               isGamepadVisible
                 ? 'bg-[#1f4e35] border-[#56d364] text-white'
-                : 'bg-[#1c2e24] border-[#1e3327] text-[#8ea396]'
+                : 'glass border-[#1e3327] text-[#8ea396]'
             }`}
           >
-            🎮 On-Screen Gamepad: {isGamepadVisible ? 'ON' : 'OFF'}
+            <Gamepad2 size={14} /> On-Screen Gamepad: {isGamepadVisible ? 'ON' : 'OFF'}
           </button>
         </div>
 
         {/* Real-Time Telemetry Log Stream */}
         <div
           ref={logContainerRef}
-          className="flex-1 min-h-[110px] max-h-[160px] overflow-y-auto bg-[#08100c] border border-[#1e3327] rounded-xl p-2 font-mono flex flex-col gap-1.5"
+          className="flex-1 min-h-[110px] max-h-[160px] overflow-y-auto glass-dark border border-[#1e3327] rounded-xl p-2 font-mono flex flex-col gap-1.5"
         />
 
         {/* Speaker Om Birla Referee Mascot */}
-        <div className="bg-[#08100c] border border-[#1e3327] rounded-xl p-2.5 flex items-center gap-2.5 shrink-0">
+        <div className="glass-dark border border-[#1e3327] rounded-xl p-2.5 flex items-center gap-2.5 shrink-0">
           <canvas
             ref={mascotCanvasRef}
             width={44}
@@ -1278,7 +1284,9 @@ export default function App() {
             className="w-11 h-11 rounded-full border-2 border-[#ffd700] bg-[#15221b] shrink-0"
           />
           <div className="flex-1 text-[11px] leading-tight">
-            <div className="font-extrabold text-[#ffd700]">Speaker Om Birla</div>
+            <div className="font-extrabold text-[#ffd700] flex items-center gap-1">
+              <Landmark size={11} /> Speaker Om Birla
+            </div>
             <div className="text-[#d8e5dc] italic mt-0.5">
               "Order in the House! Members must strictly follow Rule 267 and debate with dignity!"
             </div>
@@ -1286,11 +1294,11 @@ export default function App() {
         </div>
 
         {/* Legend */}
-        <div className="grid grid-cols-2 gap-1 text-[10px] text-[#8ea396] pt-1 border-t border-[#1e3327]">
-          <span>💰 Briefcase: +50 Meter</span>
-          <span>☕ Chai: +30 HP Heal</span>
-          <span>📜 Gavel: 1.5x Dmg Boost</span>
-          <span>🎙️ Mic: Radial Sound Blast</span>
+        <div className="grid grid-cols-2 gap-1.5 text-[10px] text-[#8ea396] pt-1 border-t border-[#1e3327]">
+          <span className="flex items-center gap-1"><Briefcase size={10} className="text-[#ffd700]" /> Briefcase: +50 Meter</span>
+          <span className="flex items-center gap-1"><Coffee size={10} className="text-[#56d364]" /> Chai: +30 HP Heal</span>
+          <span className="flex items-center gap-1"><Scroll size={10} className="text-[#ff9933]" /> Gavel: 1.5x Dmg Boost</span>
+          <span className="flex items-center gap-1"><Mic size={10} className="text-[#58a6ff]" /> Mic: Radial Sound Blast</span>
         </div>
 
         {/* Key Bindings */}

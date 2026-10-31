@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { playSound } from '../game/audio';
+import { MessageSquare, Zap, Flame, Shield, Swords, ArrowUp } from 'lucide-react';
 
 export type PadAction = 'strike' | 'special' | 'line' | 'super';
 export type PadHold = 'block' | 'jump';
@@ -15,7 +16,7 @@ interface VirtualGamepadProps {
 }
 
 interface BtnProps {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   cls: string;
   size: number;
@@ -28,7 +29,7 @@ const PadButton: React.FC<BtnProps> = ({ icon, label, cls, size, onDown, onUp, e
   <button
     type="button"
     style={{ width: size, height: size, touchAction: 'none' }}
-    className={`rounded-full border-2 text-white font-black flex flex-col items-center justify-center leading-none shadow-xl active:scale-90 transition select-none ${cls} ${extra}`}
+    className={`rounded-full border-2 text-white font-black flex flex-col items-center justify-center leading-none shadow-xl active:scale-90 transition-all duration-150 select-none ${cls} ${extra}`}
     onPointerDown={e => {
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -38,8 +39,8 @@ const PadButton: React.FC<BtnProps> = ({ icon, label, cls, size, onDown, onUp, e
     onPointerCancel={() => onUp?.()}
     onContextMenu={e => e.preventDefault()}
   >
-    <span style={{ fontSize: size * 0.34 }}>{icon}</span>
-    <span style={{ fontSize: Math.max(8, size * 0.15) }}>{label}</span>
+    <span className="flex items-center justify-center">{icon}</span>
+    <span style={{ fontSize: Math.max(8, size * 0.14) }} className="mt-0.5 opacity-90">{label}</span>
   </button>
 );
 
@@ -60,6 +61,8 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
   const big = compact ? 50 : 70;
   const small = compact ? 40 : 54;
   const maxR = stick / 2 - 14;
+  const iconSmall = Math.max(14, small * 0.34);
+  const iconBig = Math.max(16, big * 0.34);
 
   if (!isVisible) return null;
 
@@ -113,19 +116,19 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
 
   const buttons = (
     <div className="grid grid-cols-3 gap-1.5 items-center justify-items-center pointer-events-auto">
-      <PadButton icon="💬" label="LINE" size={small} cls="bg-gradient-to-br from-[#8957e5] to-[#5a32a3] border-[#bc8cff]" onDown={tap('line')} />
-      <PadButton icon="⚡" label="SPECIAL" size={small} cls="bg-gradient-to-br from-[#138808] to-[#0e5b06] border-[#56d364]" onDown={tap('special')} />
+      <PadButton icon={<MessageSquare size={iconSmall} />} label="LINE" size={small} cls="bg-gradient-to-br from-[#8957e5] to-[#5a32a3] border-[#bc8cff]" onDown={tap('line')} />
+      <PadButton icon={<Zap size={iconSmall} />} label="SPECIAL" size={small} cls="bg-gradient-to-br from-[#138808] to-[#0e5b06] border-[#56d364]" onDown={tap('special')} />
       <PadButton
-        icon="🔥"
+        icon={<Flame size={iconSmall} />}
         label="SUPER"
         size={small}
         cls="bg-gradient-to-br from-[#ffd700] to-[#ff9933] border-white !text-black"
         extra={isSuperReady ? 'animate-pulse shadow-[0_0_26px_#ffd700]' : 'opacity-60'}
         onDown={tap('super')}
       />
-      <PadButton icon="🛡️" label="BLOCK" size={small} cls="bg-gradient-to-br from-[#1f6feb] to-[#0b3d91] border-[#79c0ff]" onDown={hold('block', true)} onUp={hold('block', false)} />
-      <PadButton icon="⚔️" label="STRIKE" size={big} cls="bg-gradient-to-br from-[#e63946] to-[#9b1c1c] border-[#ff7b72]" onDown={tap('strike')} />
-      <PadButton icon="⬆️" label="JUMP" size={small} cls="bg-gradient-to-br from-[#455a64] to-[#263238] border-[#90a4ae]" onDown={hold('jump', true)} onUp={hold('jump', false)} />
+      <PadButton icon={<Shield size={iconSmall} />} label="BLOCK" size={small} cls="bg-gradient-to-br from-[#1f6feb] to-[#0b3d91] border-[#79c0ff]" onDown={hold('block', true)} onUp={hold('block', false)} />
+      <PadButton icon={<Swords size={iconBig} />} label="STRIKE" size={big} cls="bg-gradient-to-br from-[#e63946] to-[#9b1c1c] border-[#ff7b72]" onDown={tap('strike')} />
+      <PadButton icon={<ArrowUp size={iconSmall} />} label="JUMP" size={small} cls="bg-gradient-to-br from-[#455a64] to-[#263238] border-[#90a4ae]" onDown={hold('jump', true)} onUp={hold('jump', false)} />
     </div>
   );
 

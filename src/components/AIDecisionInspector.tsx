@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AIDecision } from '../game/types';
 import { getCounterfactualExplanation } from '../game/logic';
 import { speakPoliticianVoice } from '../game/audio';
+import { Brain, Volume2, X, Activity, HelpCircle, Play } from 'lucide-react';
 
 interface AIDecisionInspectorProps {
   decision: AIDecision | null;
@@ -35,40 +36,42 @@ export const AIDecisionInspector: React.FC<AIDecisionInspectorProps> = ({
 
   return (
     <div className="fixed inset-0 lg:absolute lg:inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl max-h-[85vh] bg-[#0c1712] border-2 border-[#ffd700] rounded-2xl p-5 overflow-y-auto shadow-2xl text-left">
+      <div className="w-full max-w-xl max-h-[85vh] glass border-2 border-[#ffd700] rounded-2xl p-5 overflow-y-auto shadow-2xl text-left">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-[#1e3327] mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🧠</span>
-            <h2 className="text-base sm:text-lg font-bold text-[#ffd700] font-serif">
+            <Brain size={22} className="text-[#ffd700]" />
+            <h2 className="text-base sm:text-lg font-bold text-[#ffd700] font-serif tracking-tight">
               Why Did You Do That? — AI Decision Inspector
             </h2>
           </div>
           <button
             type="button"
             onClick={handleSpeakWhy}
-            className="px-2.5 py-1 text-xs font-bold bg-[#1e3327] hover:bg-[#284534] text-[#ffd700] border border-[#ffd700]/40 rounded-lg flex items-center gap-1.5 transition"
+            className="px-2.5 py-1.5 text-xs font-bold glass hover:bg-[#284534] text-[#ffd700] border border-[#ffd700]/40 rounded-lg flex items-center gap-1.5 transition-all hover:scale-105"
           >
-            <span>🔊</span> Speak
+            <Volume2 size={14} /> Speak
           </button>
         </div>
 
         {/* Selected Primary Choice */}
-        <div className="bg-[#13241b] border-l-4 border-[#ffd700] p-3 rounded-lg mb-3">
-          <div className="text-sm font-extrabold text-[#ffd700]">
+        <div className="glass-dark border-l-4 border-[#ffd700] p-3.5 rounded-lg mb-3">
+          <div className="text-sm font-extrabold text-[#ffd700] flex items-center gap-2">
+            <Activity size={15} />
             Chosen Action: {decision.best} (EV: +{Math.round(decision.utilityMap[decision.best] ?? 0)})
           </div>
-          <div className="text-xs text-[#f5eedb] mt-1 leading-relaxed">
+          <div className="text-xs text-[#f5eedb] mt-1.5 leading-relaxed">
             {decision.why}.
           </div>
         </div>
 
         {/* Expected Value Utility Hierarchy */}
-        <div className="text-[11px] font-bold text-[#8ea396] uppercase tracking-wider mb-2">
+        <div className="text-[11px] font-bold text-[#8ea396] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <Activity size={12} />
           Mathematical Expected Value (EV) Hierarchy:
         </div>
 
-        <div className="space-y-1.5 bg-[#070e0a] border border-[#1e3327] p-3 rounded-xl">
+        <div className="space-y-1.5 glass-dark border border-[#1e3327] p-3 rounded-xl">
           {decision.expectedValues.map(([action, ev], idx) => {
             const isWinner = action === decision.best;
             const widthPct = Math.max(3, (ev / maxEV) * 100);
@@ -77,10 +80,12 @@ export const AIDecisionInspector: React.FC<AIDecisionInspectorProps> = ({
                 <span className={`w-20 font-bold font-mono ${isWinner ? 'text-white' : 'text-[#8ea396]'}`}>
                   {action}
                 </span>
-                <div className="flex-1 bg-[#15221b] h-3 rounded-full overflow-hidden">
+                <div className="flex-1 bg-[#15221b] h-3.5 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      isWinner ? 'bg-[#ffd700]' : 'bg-[#3b5947]'
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      isWinner
+                        ? 'bg-gradient-to-r from-[#ffd700] to-[#ff9933]'
+                        : 'bg-gradient-to-r from-[#3b5947] to-[#2a4035]'
                     }`}
                     style={{ width: `${Math.min(100, Math.max(0, widthPct))}%` }}
                   />
@@ -98,19 +103,23 @@ export const AIDecisionInspector: React.FC<AIDecisionInspectorProps> = ({
         </div>
 
         {/* Frame Telemetry Snapshot */}
-        <div className="mt-3 p-2.5 bg-[#08120d] border border-[#1e3327] rounded-lg text-[11px] text-[#8ea396] leading-relaxed">
-          <strong className="text-white">Active Telemetry Inputs:</strong> Distance:{' '}
-          <span className="text-[#ffd700]">{Math.round(decision.distance)}px</span> | AI HP:{' '}
-          <span className="text-[#56d364]">{Math.round(decision.aiStats.hp)}%</span> | Super Meter:{' '}
-          <span className="text-[#ffd700]">{Math.round(decision.aiStats.meter)}%</span> | Seats:{' '}
-          <span className="text-white">{Math.round(decision.aiStats.seats)}/272</span> | Target HP:{' '}
-          <span className="text-[#ff7b72]">{Math.round(decision.targetStats.hp)}%</span>.
+        <div className="mt-3 p-3 glass-dark border border-[#1e3327] rounded-lg text-[11px] text-[#8ea396] leading-relaxed">
+          <strong className="text-white flex items-center gap-1.5 mb-1">
+            <Activity size={12} /> Active Telemetry Inputs:
+          </strong>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5 mt-1">
+            <span>Distance: <span className="text-[#ffd700] font-mono">{Math.round(decision.distance)}px</span></span>
+            <span>AI HP: <span className="text-[#56d364] font-mono">{Math.round(decision.aiStats.hp)}%</span></span>
+            <span>Super Meter: <span className="text-[#ffd700] font-mono">{Math.round(decision.aiStats.meter)}%</span></span>
+            <span>Seats: <span className="text-white font-mono">{Math.round(decision.aiStats.seats)}/272</span></span>
+            <span>Target HP: <span className="text-[#ff7b72] font-mono">{Math.round(decision.targetStats.hp)}%</span></span>
+          </div>
         </div>
 
         {/* Counterfactual Questions */}
         <div className="mt-3 pt-3 border-t border-[#1e3327]">
-          <div className="text-xs font-bold text-[#ffd700] mb-2">
-            Ask Counterfactual: "Why didn't you do something else?"
+          <div className="text-xs font-bold text-[#ffd700] mb-2 flex items-center gap-1.5">
+            <HelpCircle size={14} /> Ask Counterfactual: "Why didn't you do something else?"
           </div>
           <div className="flex flex-wrap gap-1.5">
             {decision.expectedValues
@@ -120,7 +129,7 @@ export const AIDecisionInspector: React.FC<AIDecisionInspectorProps> = ({
                   key={action}
                   type="button"
                   onClick={() => handleSelectCounterfactual(action, ev)}
-                  className="px-2.5 py-1 text-[11px] bg-[#14231a] hover:bg-[#1e3829] border border-[#234231] hover:border-[#ffd700] text-[#f5eedb] rounded-md transition"
+                  className="px-2.5 py-1.5 text-[11px] glass hover:bg-[#1e3829] border border-[#234231] hover:border-[#ffd700] text-[#f5eedb] rounded-md transition-all hover:scale-105"
                 >
                   Why not {action}?
                 </button>
@@ -128,7 +137,7 @@ export const AIDecisionInspector: React.FC<AIDecisionInspectorProps> = ({
           </div>
 
           {activeCounterfactual && (
-            <div className="mt-2.5 p-2.5 bg-[#091510] border border-[#58a6ff]/40 rounded-lg text-xs text-[#58a6ff] italic leading-relaxed">
+            <div className="mt-2.5 p-3 glass-dark border border-[#58a6ff]/40 rounded-lg text-xs text-[#58a6ff] italic leading-relaxed">
               <strong>Counterfactual Analysis:</strong> {activeCounterfactual}
             </div>
           )}
@@ -139,9 +148,9 @@ export const AIDecisionInspector: React.FC<AIDecisionInspectorProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl text-xs font-bold bg-[#ffd700] text-black hover:bg-[#ffe24a] active:scale-95 transition"
+            className="px-5 py-2 rounded-xl text-xs font-bold bg-[#ffd700] text-black hover:bg-[#ffe24a] active:scale-95 hover:scale-105 transition-all duration-200 flex items-center gap-2 ml-auto"
           >
-            Resume Parliamentary Session
+            <Play size={14} /> Resume Parliamentary Session
           </button>
         </div>
       </div>
