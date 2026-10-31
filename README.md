@@ -24,16 +24,18 @@
 - 🎮 **Virtual On-Screen Gamepad:** Full mobile and touchscreen support alongside desktop keyboard controls.
 - 📜 **Rulebook Modal (Rule 267):** Authentic parliamentary rules, victory conditions, and mechanics.
 
-### ✨ Latest Update: Major UI Overhaul
+### ✨ Latest Update: Cinematic Atmosphere & Parliamentary Boot Sequence
 
-- 🎨 **All emojis replaced with Lucide React SVG icons** — crisp, scalable, and professional across every device
-- 🪟 **Glass-morphism effects** — frosted-glass panels with `backdrop-blur` for modals, cards, and controls
-- 🏛️ **Parliament background pattern** — radial gradient atmosphere on the character select screen
-- ✨ **Golden shimmer CTA button** — animated gradient shimmer on the "Enter the Lok Sabha Chamber" button
-- 🏆 **Victory confetti & crown animation** — gold confetti particles rain down with floating crown icon on win
-- 💫 **Pulse-gold selected pins** — animated golden ring pulse on the selected politician's map pin
-- 🎯 **Gradient utility bars** — decision tree EV bars now use smooth gradients instead of flat colors
-- 🖱️ **Hover micro-interactions** — scale-up transitions on all buttons and controls
+- 🎬 **Hilarious "18th Lok Sabha Boot Protocol" Intro Animation:**
+  - Dynamic 272-majority-seat counter counting up from 0 to 272 with victory audio chime
+  - Animated spinning Ashoka Chakra emblem, slamming Speaker Om Birla gavel, and floating parliament items (♨️ bubbling Adrak Chai, 56-inch armor, love particles)
+  - 7 hilarious rotating parliamentary status quotes (muting microphones, Amit Shah's resort helicopters, Kejriwal's AQI 999 muffler, Rahul's wink cannons)
+  - Interactive Skip `<Space>` / `<Enter>` and replayable "Boot Sequence" button on the map
+- 🌌 **Cinematic First-Page Background:** Hand-tuned astronaut visual backdrop on the India Map selection screen with atmospheric dark vignettes and lighting.
+- 🎨 **All Emojis Upgraded to Lucide React SVG Icons:** Clean, professional vector iconography across menus, modals, and telemetry.
+- 🪟 **Modern Glass-Morphism Architecture:** Frosted glass panels (`backdrop-blur-xl`), golden shimmer CTA buttons, and glowing hover states.
+- 📡 **Animated Combat Telemetry Log Stream:** Smooth slide-in entries for attacks, AI decisions, items, and meme super moves.
+- 🏆 **Victory Confetti & Crown:** Triumphant golden celebration effects for match winners.
 - 👥 **1P vs AI & 2-Player Local PvP:** Play solo against the self-explaining AI or duel a friend on the same device.
 
 ---

@@ -40,6 +40,7 @@ import { AIDecisionInspector } from './components/AIDecisionInspector';
 import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
+import { IntroLoadingScreen } from './components/IntroLoadingScreen';
 import {
   Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
   Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
@@ -55,6 +56,7 @@ export default function App() {
   const logContainerRef = useRef<HTMLDivElement | null>(null);
 
   // High-level App State
+  const [isLoadingIntro, setIsLoadingIntro] = useState(true);
   const [gameState, setGameState] = useState<'menu' | 'play' | 'over'>('menu');
   const [selectedPolitician, setSelectedPolitician] = useState<Politician>(POLITICIANS[0]);
   const [is2PlayerMode, setIs2PlayerMode] = useState(false);
@@ -109,16 +111,17 @@ export default function App() {
   const addLog = useCallback((type: 'me' | 'cpu' | 'item' | 'super', msg: string) => {
     if (!logContainerRef.current) return;
     const entry = document.createElement('div');
-    entry.className = `p-1 rounded text-[11px] leading-tight border-l-2 ${
+    entry.className = `p-1 rounded text-[11px] leading-tight border-l-2 transition-all animate-in fade-in slide-in-from-right duration-200 ${
       type === 'cpu'
-        ? 'border-[#ff7b72] bg-[#ff7b72]/10 text-[#f5eedb]'
+        ? 'border-[#ff7b72] bg-[#ff7b72]/15 text-[#f5eedb]'
         : type === 'me'
-        ? 'border-[#ffd700] bg-[#ffd700]/10 text-white'
+        ? 'border-[#ffd700] bg-[#ffd700]/15 text-white'
         : type === 'super'
-        ? 'border-[#ff9933] bg-[#ff9933]/15 text-[#ffd700] font-bold'
-        : 'border-[#56d364] bg-[#56d364]/10 text-[#d8e5dc]'
+        ? 'border-[#ff9933] bg-[#ff9933]/20 text-[#ffd700] font-bold shadow-sm'
+        : 'border-[#56d364] bg-[#56d364]/15 text-[#d8e5dc]'
     }`;
-    entry.textContent = msg;
+    const prefix = type === 'super' ? '🔥 ' : type === 'item' ? '☕ ' : type === 'me' ? '⚡ ' : '🤖 ';
+    entry.textContent = `${prefix}${msg}`;
     const container = logContainerRef.current;
     container.appendChild(entry);
     while (container.children.length > 30) {
@@ -1025,6 +1028,10 @@ export default function App() {
 
   return (
     <div className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-[#070d0a] text-[#f5eedb] select-none font-sans">
+      {/* Humorous Parliamentary Boot / Loading Intro Screen */}
+      {isLoadingIntro && (
+        <IntroLoadingScreen onFinish={() => setIsLoadingIntro(false)} />
+      )}
       {/* Left Stage Viewport (68%) */}
       <div className="relative flex-1 lg:flex-[68_1_0] flex items-center justify-center bg-[#030705] overflow-hidden min-w-0">
         <canvas
@@ -1108,6 +1115,7 @@ export default function App() {
             is2PlayerMode={is2PlayerMode}
             onToggle2Player={setIs2PlayerMode}
             onOpenRulebook={() => setIsRulebookOpen(true)}
+            onReplayIntro={() => setIsLoadingIntro(true)}
           />
         )}
 

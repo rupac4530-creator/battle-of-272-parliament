@@ -6,7 +6,7 @@ import { speakPoliticianVoice } from '../game/audio';
 import { INDIA_PATH, ISLANDS, CITIES, REGIONS, LEADER_LOC, proj } from '../game/indiaGeo';
 import {
   Landmark, Gamepad2, Users, BookOpen, Zap, Flame,
-  Mic, Volume2, Swords, Github, MapPin, Play
+  Mic, Volume2, Swords, Github, MapPin, Play, Sparkles
 } from 'lucide-react';
 
 interface IndiaMapSelectProps {
@@ -16,6 +16,7 @@ interface IndiaMapSelectProps {
   is2PlayerMode: boolean;
   onToggle2Player: (is2P: boolean) => void;
   onOpenRulebook: () => void;
+  onReplayIntro?: () => void;
 }
 
 export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
@@ -24,7 +25,8 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   onStartGame,
   is2PlayerMode,
   onToggle2Player,
-  onOpenRulebook
+  onOpenRulebook,
+  onReplayIntro
 }) => {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [tick, setTick] = useState(0);
@@ -59,12 +61,21 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
     );
   };
 
+  const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+  const menuBg = `${base}/menu-bg.jpg`;
+
   return (
-    <div className="fixed inset-0 lg:absolute lg:inset-0 z-50 flex flex-col items-center justify-between p-3 sm:p-5 overflow-y-auto relative">
-      {/* Parliament House Background */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 parliament-bg" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#040906]/70 via-[#040906]/90 to-[#040906]" />
+    <div className="fixed inset-0 lg:absolute lg:inset-0 z-50 flex flex-col items-center justify-between p-3 sm:p-5 overflow-y-auto relative bg-[#040906]">
+      {/* Astronaut Modi Cinematic Background (First Page Only) */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <img
+          src={menuBg}
+          alt="Parliament Arena Background"
+          className="w-full h-full object-cover object-center scale-105 filter brightness-85 contrast-105"
+        />
+        {/* Cinematic dark gradients & atmospheric lighting to keep UI & map sharp */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#040906] via-[#040906]/55 to-[#040906]/75" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(4,9,6,0.85)_95%)]" />
       </div>
 
       {/* Content */}
@@ -113,6 +124,16 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
             >
               <BookOpen size={13} /> Rule 267
             </button>
+            {onReplayIntro && (
+              <button
+                type="button"
+                onClick={onReplayIntro}
+                className="px-3 py-1.5 rounded-full text-xs font-bold glass text-[#ff9933] border border-[#ff9933]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+                title="Replay Loading Sequence"
+              >
+                <Sparkles size={13} /> Boot Sequence
+              </button>
+            )}
             <a
               href="https://github.com/rupac4530-creator/battle-of-272-parliament"
               target="_blank"
