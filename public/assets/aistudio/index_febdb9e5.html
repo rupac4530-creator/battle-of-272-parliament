@@ -1,0 +1,2302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>The Parliament House: Battle of 272 — Ultra-Realistic Political Brawler & Explainable AI</title>
+  <style>
+    :root {
+      --bg: #070d0a;
+      --pn: #0f1a14;
+      --ln: #24382c;
+      --tx: #f5eedb;
+      --mu: #8ea396;
+      --gd: #ffd700;
+      --sf: #ff9933;
+      --gr: #138808;
+      --rd: #e63946;
+      --bl: #58a6ff;
+      --border-panel: #1e3327;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body {
+      height: 100%;
+      width: 100vw;
+      margin: 0;
+      background: var(--bg);
+      color: var(--tx);
+      font: 14px/1.4 'Segoe UI', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Left Stage Viewport (68%) */
+    #stage {
+      position: relative;
+      flex: 68 1 0;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #030705;
+      overflow: hidden;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      max-height: 100vh;
+      display: block;
+      object-fit: contain;
+      image-rendering: auto;
+    }
+
+    /* Right Telemetry & AI Console (32%) */
+    #side {
+      flex: 32 1 0;
+      min-width: 340px;
+      max-width: 420px;
+      background: var(--pn);
+      border-left: 2px solid var(--border-panel);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 8px;
+      overflow-y: auto;
+      z-index: 20;
+    }
+
+    .side-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-panel);
+      padding-bottom: 6px;
+    }
+
+    .side-header h1 {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--gd);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-live {
+      background: rgba(19, 136, 8, 0.25);
+      border: 1px solid var(--gr);
+      color: #56d364;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Decision Tree Visualizer Container */
+    #decision-tree-card {
+      background: #08120d;
+      border: 1px solid var(--border-panel);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .dt-header {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--gd);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .dt-branches {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 4px;
+    }
+    .dt-node {
+      background: #0d1a13;
+      border: 1px solid #1a2e22;
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 10px;
+      transition: all 0.2s;
+    }
+    .dt-node.active {
+      background: rgba(255, 215, 0, 0.15);
+      border-color: var(--gd);
+      color: #fff;
+      font-weight: bold;
+      box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+    }
+    .dt-val { float: right; font-weight: bold; color: #56d364; }
+
+    #log {
+      flex: 1;
+      min-height: 120px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: #08100c;
+      border: 1px solid var(--border-panel);
+      border-radius: 8px;
+      padding: 8px;
+      font: 11px/1.4 'Consolas', 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    #log div {
+      border-left: 3px solid var(--mu);
+      padding-left: 6px;
+      animation: fadeIn 0.2s ease-out;
+    }
+    #log .cpu { border-color: var(--rd); background: rgba(230, 57, 70, 0.08); }
+    #log .me { border-color: var(--gd); background: rgba(255, 215, 0, 0.08); }
+    #log .item { border-color: #56d364; }
+    #log .super { border-color: var(--sf); font-weight: bold; }
+
+    /* Buttons & Toggles */
+    button {
+      font: 700 12px 'Segoe UI', sans-serif;
+      color: #0b140f;
+      background: linear-gradient(135deg, #ffd700 0%, #e9b93c 100%);
+      border: 0;
+      border-radius: 6px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    button:hover { transform: translateY(-1px); filter: brightness(1.1); }
+    button.g { background: #1c2e24; color: var(--tx); border: 1px solid var(--border-panel); }
+    button.g:hover { background: #294234; }
+    button.g.on { background: #1f4e35; border-color: #56d364; color: #fff; }
+    button.primary { background: linear-gradient(135deg, #ff9933 0%, #e65100 100%); color: #fff; padding: 12px; font-size: 15px; }
+
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    /* Speaker Mascot Box */
+    .speaker-mascot-card {
+      background: #08100c;
+      border: 1px solid var(--border-panel);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #mascotCanvas { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--gd); background: #15221b; flex-shrink: 0; }
+    .mascot-text { flex: 1; font-size: 10.5px; line-height: 1.35; }
+    .mascot-name { font-weight: 800; color: var(--gd); margin-bottom: 2px; }
+
+    /* Power-up Legend */
+    .lg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 10.5px; color: var(--mu); }
+    .lg span { display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.25); padding: 3px 5px; border-radius: 4px; }
+
+    /* Overlays */
+    .ov {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 10, 7, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      gap: 10px;
+      overflow-y: auto;
+      text-align: center;
+      z-index: 50;
+    }
+    .hid { display: none !important; }
+
+    /* In-Game Contextual Rule-Teaching Banner ("Rule Coach") */
+    #ruleCoachBanner {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(13, 24, 18, 0.94);
+      border: 2px solid var(--gd);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8), 0 0 12px rgba(255, 215, 0, 0.3);
+      border-radius: 24px;
+      padding: 8px 18px;
+      color: #fff;
+      font-size: 12.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 35;
+      pointer-events: auto;
+      animation: bounceDown 0.4s ease-out;
+      max-width: 90%;
+    }
+    #ruleCoachBanner .coach-badge {
+      background: var(--gd);
+      color: #0b140f;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 2px 7px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    #ruleCoachBanner .coach-text { flex: 1; text-align: left; }
+    #ruleCoachBanner .coach-close {
+      cursor: pointer;
+      color: var(--mu);
+      font-weight: bold;
+      padding: 0 4px;
+      border-radius: 50%;
+    }
+    #ruleCoachBanner .coach-close:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    @keyframes bounceDown {
+      0% { transform: translate(-50%, -30px); opacity: 0; }
+      100% { transform: translate(-50%, 0); opacity: 1; }
+    }
+
+    /* India Map & Character Selection */
+    .mw { display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap; width: 100%; max-width: 860px; }
+    #map {
+      position: relative;
+      width: 360px;
+      aspect-ratio: 400/460;
+      flex: none;
+      background: #060d09;
+      border: 1px solid var(--border-panel);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    }
+    #map svg { width: 100%; height: 100%; display: block; }
+    .pin {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      background: #0c1812;
+      border: 2px solid var(--gd);
+      border-radius: 8px;
+      padding: 2px 4px;
+      color: var(--tx);
+      font: 800 10px 'Segoe UI';
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      transition: all 0.15s;
+    }
+    .pin:hover, .pin.on {
+      background: var(--gd);
+      color: #0b140f;
+      box-shadow: 0 0 16px var(--gd);
+      transform: translate(-50%, -50%) scale(1.1);
+      z-index: 10;
+    }
+    .pin canvas { display: block; }
+
+    #card {
+      width: 330px;
+      background: #111d17;
+      border: 1px solid var(--border-panel);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: left;
+    }
+    #card canvas { float: right; margin: 0 0 8px 10px; border-radius: 8px; border: 2px solid var(--gd); background: #16261d; }
+    #card h2 { font-size: 18px; color: #fff; margin-bottom: 2px; }
+    #card .sub { color: var(--gd); font-size: 11px; font-weight: 700; margin-bottom: 8px; }
+    #card p { margin: 5px 0; color: var(--mu); font-size: 11px; line-height: 1.4; }
+    #card strong { color: var(--tx); }
+
+    .mode-switch-box { display: flex; gap: 8px; margin-bottom: 4px; }
+    .mode-btn { background: #15221b; border: 1px solid var(--border-panel); color: var(--tx); padding: 6px 12px; border-radius: 16px; font-size: 11px; cursor: pointer; }
+    .mode-btn.active { background: var(--bl); color: #000; border-color: #fff; font-weight: 800; }
+
+    /* "Why Did You Do That?" AI Inspector Modal */
+    #why-box {
+      width: min(580px, 94vw);
+      max-height: 85vh;
+      overflow-y: auto;
+      background: #0d1813;
+      border: 1.5px solid var(--gd);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: left;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    }
+    table { width: 100%; border-collapse: collapse; font: 11px 'Consolas', monospace; text-align: left; margin: 8px 0; }
+    td { padding: 4px 6px; }
+    .bar { height: 8px; background: var(--gd); border-radius: 3px; }
+    .cf-btn {
+      background: #15251c;
+      border: 1px solid var(--border-panel);
+      color: var(--tx);
+      font-size: 10px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 2px;
+    }
+    .cf-btn:hover { background: #264332; border-color: var(--gd); }
+
+    /* Illustrated Parliamentary Rulebook Modal */
+    #rulebook-box {
+      width: min(600px, 94vw);
+      max-height: 85vh;
+      overflow-y: auto;
+      background: #0c1712;
+      border: 1.5px solid var(--gd);
+      border-radius: 10px;
+      padding: 18px;
+      text-align: left;
+    }
+    .rule-item {
+      background: #13241b;
+      border-left: 3px solid var(--gd);
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      font-size: 11.5px;
+    }
+    .rule-item h3 { font-size: 13px; color: var(--gd); margin-bottom: 3px; }
+
+    /* On-Screen Touch / Mouse Virtual Gamepad */
+    #v-pad {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+      z-index: 30;
+    }
+    .v-left, .v-right { pointer-events: auto; }
+
+    /* Virtual Analog Joystick */
+    .joystick-base {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(20,32,26,0.85) 0%, rgba(8,16,12,0.92) 100%);
+      border: 2px solid rgba(255, 215, 0, 0.45);
+      position: relative;
+      touch-action: none;
+      cursor: crosshair;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.7);
+    }
+    .joystick-knob {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #58a6ff 0%, #1f6feb 100%);
+      border: 2px solid #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+      pointer-events: none;
+      transform: translate(0px, 0px);
+    }
+
+    /* Action Buttons Cluster */
+    .v-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, 58px);
+      gap: 10px;
+    }
+    .act-btn {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.4);
+      color: #fff;
+      font: 900 10px sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: manipulation;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      transition: transform 0.08s;
+    }
+    .act-btn:active, .act-btn.pressed { transform: scale(0.9); }
+    .act-btn span { font-size: 16px; margin-bottom: 2px; }
+    .btn-hit { background: linear-gradient(135deg, #e63946, #b71c1c); border-color: #ff7b72; }
+    .btn-sp { background: linear-gradient(135deg, #138808, #0e5b06); border-color: #56d364; }
+    .btn-line { background: linear-gradient(135deg, #8957e5, #5a32a3); border-color: #bc8cff; }
+    .btn-su { background: linear-gradient(135deg, #ffd700, #ff9933); border-color: #fff; color: #000; }
+    .btn-su.ready { animation: pulseSuper 0.7s infinite alternate; }
+    @keyframes pulseSuper { from { box-shadow: 0 0 6px #ffd700; transform: scale(1); } to { box-shadow: 0 0 24px #ffd700; transform: scale(1.08); } }
+
+    @media (max-width: 860px) {
+      #app { flex-direction: column; }
+      #stage { flex: none; height: 56vh; }
+      #side { flex: 1; max-width: 100%; border-left: 0; border-top: 2px solid var(--border-panel); }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Left: Stage with Canvas, In-Game Rule Coach, Cinematic Overlays, and Virtual Gamepad -->
+    <div id="stage">
+      <canvas id="c" width="800" height="450"></canvas>
+
+      <!-- Contextual In-Game Rule Coach ("Rule 267 Academy") -->
+      <div id="ruleCoachBanner" class="hid">
+        <span class="coach-badge">RULE COACH</span>
+        <span id="coachText" class="coach-text">Rule 1: Move left/right with [A]/[D] or Virtual Joystick.</span>
+        <span id="coachClose" class="coach-close" title="Dismiss this tip">✕</span>
+      </div>
+
+      <!-- On-Screen Virtual Gamepad -->
+      <div id="v-pad" class="hid">
+        <div class="v-left">
+          <div class="joystick-base" id="joyBase" title="Drag to move politician">
+            <div class="joystick-knob" id="joyKnob"></div>
+          </div>
+        </div>
+        <div class="v-right">
+          <div class="v-buttons">
+            <div class="act-btn btn-sp" id="btnSpecial" title="Signature Move [K]"><span>⚡</span>SPECIAL</div>
+            <div class="act-btn btn-hit" id="btnStrike" title="Strike [J/Space]"><span>⚔️</span>STRIKE</div>
+            <div class="act-btn btn-line" id="btnLine" title="Pickup Line [F]"><span>💬</span>LINE</div>
+            <div class="act-btn btn-su" id="btnSuper" title="Meme Super [Q/L]"><span>🔥</span>SUPER</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Character Select & Cartographic India Map Overlay -->
+      <div id="menu" class="ov">
+        <h1 style="font-size:24px; color:var(--gd); letter-spacing:1px;">THE PARLIAMENT HOUSE: BATTLE OF 272</h1>
+        <div style="color:var(--mu); font-size:11.5px;">Choose your National Leader from the Indian Map. Win by Knockout OR secure 272 Majority Seats!</div>
+
+        <div class="mode-switch-box">
+          <button class="mode-btn active" id="mode1p">🎮 1P vs Explainable AI</button>
+          <button class="mode-btn" id="mode2p">👥 2-Player Local PvP (Same Keyboard)</button>
+        </div>
+
+        <div class="mw">
+          <div id="map"></div>
+          <div id="card"></div>
+        </div>
+
+        <button class="primary" id="go">ENTER THE LOK SABHA CHAMBER ⚔️</button>
+      </div>
+
+      <!-- "Why Did You Do That?" AI Inspector Modal (With Counterfactual Q&A) -->
+      <div id="why" class="ov hid">
+        <div id="why-box">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-panel); padding-bottom:8px; margin-bottom:10px;">
+            <h2 style="font-size:16px; color:var(--gd);">🧠 Why Did You Do That? — AI Decision Inspector</h2>
+            <button id="speakWhyBtn" class="g" style="padding:3px 8px; font-size:11px;">🔊 Speak</button>
+          </div>
+          <div id="whyb"></div>
+          <div style="margin-top:10px; border-top:1px solid var(--border-panel); padding-top:8px;">
+            <div style="font-size:11px; font-weight:bold; color:var(--gd); margin-bottom:4px;">Ask Counterfactual: "Why didn't you do something else?"</div>
+            <div id="cfButtons" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+            <div id="cfAnswer" style="margin-top:6px; font-size:11px; color:#58a6ff; font-style:italic; background:#08100c; padding:6px; border-radius:4px; display:none;"></div>
+          </div>
+          <div style="text-align:right; margin-top:12px;">
+            <button id="res" style="background:var(--gd); color:#000;">Resume Parliamentary Session</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Illustrated Parliamentary Rulebook Modal -->
+      <div id="rulebook" class="ov hid">
+        <div id="rulebook-box">
+          <h2 style="font-size:18px; color:var(--gd); margin-bottom:12px; border-bottom:1px solid var(--border-panel); padding-bottom:6px;">📖 Lok Sabha Rules of Engagement (Rule 267)</h2>
+          
+          <div class="rule-item">
+            <h3>🏛️ Rule 1: The Two Paths to Victory</h3>
+            <strong>Knockout:</strong> Deplete opponent's 100 HP to zero.<br>
+            <strong>OR Parliamentary Majority:</strong> Accumulate <strong>272 Majority Seats</strong> by controlling the central Speaker's podium!
+          </div>
+
+          <div class="rule-item">
+            <h3>⚔️ Rule 2: Basic Combat & Defense</h3>
+            <strong>[J] / [Space] Strike:</strong> Fast melee hit. Deals 7 damage and builds Super Meter.<br>
+            <strong>[S] / [Down] Block:</strong> Absorb incoming damage by 75% and cancel knockback.
+          </div>
+
+          <div class="rule-item">
+            <h3>⚡ Rule 3: Signature Moves & Counters</h3>
+            <strong>[K] Special:</strong> Each politician has a unique ability (Modi's Shockwave, Shah's Meter Steal, Kharge's Gavel Parry Counter, Mamata's Hawai Chappal combo).
+          </div>
+
+          <div class="rule-item">
+            <h3>🔥 Rule 4: Meme Cinematic Super Moves</h3>
+            When Super Meter hits 100%, press <strong>[Q] / [L]</strong> to trigger full-screen unblockable ultimate attacks with real Hindi meme voice lines!
+          </div>
+
+          <div class="rule-item">
+            <h3>💬 Rule 5: Political Pickup Lines [F]</h3>
+            Press <strong>[F]</strong> to woo neutral MPs with hilarious political pickup lines, gaining instant +8 Parliamentary Seats!
+          </div>
+
+          <div class="rule-item">
+            <h3>☕ Rule 6: Parliament Canteen Drops</h3>
+            Collect falling items: <strong>Kullad Chai (+30 HP)</strong>, <strong>Budget Briefcase (+50 Super Meter)</strong>, <strong>Constitution Gavel (1.5x Damage)</strong>, and <strong>Speaker Megaphone (Radial Blast)</strong>.
+          </div>
+
+          <div style="text-align:right; margin-top:10px;">
+            <button id="closeRulebookBtn" style="background:var(--gd); color:#000;">Got It, Return to Debate</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Match Result & 6 Branching Visual Novel Endings Overlay -->
+      <div id="end" class="ov hid"></div>
+    </div>
+
+    <!-- Right: Explainable AI Telemetry Sidebar & Mascot Referee -->
+    <aside id="side">
+      <div class="side-header">
+        <h1><span>🏛️</span> Speaker AI Telemetry</h1>
+        <span class="badge-live" id="aiBadge">SELF-EXPLAINING CODE</span>
+      </div>
+      <div style="color:var(--mu); font-size:11px;">
+        Evaluates mathematical Expected Value (EV) every 20 ticks. Shows how code thinks!
+      </div>
+
+      <!-- Live Real-Time Decision Tree Node Visualizer -->
+      <div id="decision-tree-card">
+        <div class="dt-header">
+          <span>🧠 LIVE DECISION TREE</span>
+          <span id="dtTopBranch" style="color:#56d364;">EVALUATING...</span>
+        </div>
+        <div class="dt-branches">
+          <div class="dt-node" id="node-Strike">⚔️ Strike <span class="dt-val" id="val-Strike">+0</span></div>
+          <div class="dt-node" id="node-Special">⚡ Special <span class="dt-val" id="val-Special">+0</span></div>
+          <div class="dt-node" id="node-Super">🔥 Super <span class="dt-val" id="val-Super">+0</span></div>
+          <div class="dt-node" id="node-Block">🛡️ Block <span class="dt-val" id="val-Block">+0</span></div>
+          <div class="dt-node" id="node-Approach">🏃 Approach <span class="dt-val" id="val-Approach">+0</span></div>
+          <div class="dt-node" id="node-Retreat">↩️ Retreat <span class="dt-val" id="val-Retreat">+0</span></div>
+          <div class="dt-node" id="node-Podium">🏛️ 272 Seats <span class="dt-val" id="val-Podium">+0</span></div>
+          <div class="dt-node" id="node-Pickup">☕ Canteen <span class="dt-val" id="val-Pickup">+0</span></div>
+        </div>
+      </div>
+
+      <!-- Action & Toggle Buttons Grid -->
+      <div class="action-grid">
+        <button id="whyBtn" class="g" style="color:var(--gd);">🧠 Why Did You Do That?</button>
+        <button id="toggleVoice" class="g">🎙️ AI Voice: OFF</button>
+        <button id="toggleCoach" class="g on">🎓 Rule Coach: ON</button>
+        <button id="openRulebookBtn" class="g">📖 Rulebook</button>
+      </div>
+
+      <div style="display:flex; gap:6px;">
+        <button id="toggleJoy" class="g" style="flex:1;">🎮 Gamepad: ON</button>
+      </div>
+
+      <!-- Real-Time Telemetry Log Stream -->
+      <div id="log"></div>
+
+      <!-- Om Birla Referee Mascot Card -->
+      <div class="speaker-mascot-card">
+        <canvas id="mascotCanvas" width="44" height="44"></canvas>
+        <div class="mascot-text">
+          <div class="mascot-name">Speaker Om Birla</div>
+          <div id="mascotQuote" style="color:#d8e5dc; font-style:italic;">
+            "Order in the House! Members must strictly follow Rule 267 and debate with dignity!"
+          </div>
+        </div>
+      </div>
+
+      <h2 style="font-size:12px; color:var(--gd); margin-top:2px;">Chamber Canteen Drops</h2>
+      <div class="lg" id="lg"></div>
+
+      <div style="font-size:10.5px; color:var(--mu); border-top:1px solid var(--border-panel); padding-top:6px;">
+        <b style="color:var(--tx)">P1 Keyboard:</b> WASD Move/Jump/Block | Space/J Strike | K Special | Q/L Super | F Pickup Line.<br>
+        <b style="color:var(--tx)">P2 PvP:</b> Arrows Move/Jump/Block | Enter Strike | K Special | O Super | P Pickup Line.<br>
+        <b style="color:var(--gd)">Victory:</b> 0 HP Knockout OR capture 272 Majority Seats on the podium!
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. CAST: THE 9 AUTHENTIC POLITICIANS, MEME DIALOGUES, AND ARTICULATION DATA
+       ========================================================================== */
+    const CS = [
+      {
+        id: 'modi',
+        n: 'Narendra Modi',
+        t: 'The Prime Minister',
+        role: 'Heavy Momentum & Guard Crusher',
+        state: 'Gujarat',
+        pos: [25, 48],
+        col: '#ff9933',
+        pants: '#f8f4e6',
+        skin: '#e0ac69',
+        hc: '#f5f5f5',
+        hair: 'beard_glasses',
+        acc: 'modi_jacket',
+        a2: '#e65100',
+        sgn: 'Mitron Shockwave',
+        sun: 'Vande Bharat Express',
+        sg: 'proj',
+        su: 'train',
+        q: 'अङ्गेन गात्रं नयनेन वक्त्रं न्यायेन राज्यं लवणेन भोज्यम्…',
+        speech: 'अङ्गेन गात्रं नयनेन वक्त्रं न्यायेन राज्यं लवणेन भोज्यम्!',
+        pitch: 0.85,
+        pickup: 'Mitron! Are you a development bill? Because I pass you unanimously!',
+        desc: 'White beard, rimless glasses, cream Kurta with Saffron Modi Jacket & lotus pin.'
+      },
+      {
+        id: 'shah',
+        n: 'Amit Shah',
+        t: 'The Home Minister',
+        role: 'Tactical Trapper & Meter Stealer',
+        state: 'Gujarat / Delhi',
+        pos: [20, 44],
+        col: '#263238',
+        pants: '#f8f4e6',
+        skin: '#e5b887',
+        hc: '#f0f0f0',
+        hair: 'bald_beard',
+        acc: 'waistcoat',
+        a2: '#ffffff',
+        sgn: 'Operation Lotus',
+        sun: 'Chanakya Lockdown',
+        sg: 'grab',
+        su: 'chain',
+        q: 'अरे भाई बैठो ना! शांति से बैठो!',
+        speech: 'अरे भाई बैठो ना!',
+        pitch: 0.75,
+        pickup: 'Aap chronology samajhiye—first we meet, then we form a majority!',
+        desc: 'Bald crown with white side hair, full beard, glasses, white kurta with dark waistcoat.'
+      },
+      {
+        id: 'rahul',
+        n: 'Rahul Gandhi',
+        t: 'Leader of Opposition',
+        role: 'High-Stamina Sprinter & Crossup',
+        state: 'Rae Bareli / Wayanad',
+        pos: [36, 82],
+        col: '#ffffff',
+        pants: '#1e293b',
+        skin: '#ebbfa0',
+        hc: '#2c3539',
+        hair: 'wavy_stubble',
+        acc: 'tshirt',
+        a2: '#00b4d8',
+        sgn: 'Mohabbat Ki Dukaan',
+        sun: 'Aloo-Sona Gold Cannon',
+        sg: 'heal_aura',
+        su: 'aloo_gold',
+        q: 'Is side se aloo dalo, us side se sona nikale ga!',
+        speech: 'Is side se aloo dalo, us side se sona nikale ga!',
+        pitch: 1.05,
+        pickup: 'Forget hatred, I opened a Mohabbat Ki Dukaan just for you!',
+        desc: 'Wavy dark hair, salt-and-pepper beard, iconic White Bharat Jodo T-shirt.'
+      },
+      {
+        id: 'yogi',
+        n: 'Yogi Adityanath',
+        t: 'Chief Minister UP',
+        role: 'Super-Armor Brawler & Ground Pounder',
+        state: 'Uttar Pradesh',
+        pos: [50, 36],
+        col: '#ff6d00',
+        pants: '#ff6d00',
+        skin: '#dfa672',
+        hc: '#ff6d00',
+        hair: 'shaved_kundal',
+        acc: 'mala',
+        a2: '#d32f2f',
+        sgn: 'Saffron Blast',
+        sun: 'Bulldozer Cleave',
+        sg: 'burn',
+        su: 'bulldozer',
+        q: 'टोंटीचोर टोंटी चोरी करते रहेंगे, तो क्षति तो गाँव की होनी...',
+        speech: 'टोंटीचोर टोंटी चोरी करते रहेंगे, तो क्षति तो गाँव की होनी!',
+        pitch: 0.8,
+        pickup: 'Even my bulldozer stops in its tracks when you enter the House!',
+        desc: 'Shaved head, saffron monk robes, rudraksha mala, ear kundals & JCB bulldozer.'
+      },
+      {
+        id: 'rajnath',
+        n: 'Rajnath Singh',
+        t: 'The Defence Minister',
+        role: 'Long-Range Zoner & Air Controller',
+        state: 'Lucknow / UP',
+        pos: [38, 28],
+        col: '#1b5e20',
+        pants: '#ffffff',
+        skin: '#e0ab76',
+        hc: '#37474f',
+        hair: 'parted_tilak',
+        acc: 'bandhgala',
+        a2: '#ffd700',
+        sgn: 'Kadi Ninda Stun',
+        sun: 'Moye-Moye Rafale Strike',
+        sg: 'confuse',
+        su: 'rafale',
+        q: 'Iss desh ki janata iska bhi moye moye kar degi!',
+        speech: 'Iss desh ki janata iska bhi moye moye kar degi!',
+        pitch: 0.9,
+        pickup: 'I refuse to do Kadi Ninda when your smile disarms my radar shield!',
+        desc: 'Neat grey hair, red tilak, white kurta with navy bandhgala vest.'
+      },
+      {
+        id: 'sitharaman',
+        n: 'Nirmala Sitharaman',
+        t: 'The Finance Minister',
+        role: 'Stamina Drainer & Fiscal Siphoner',
+        state: 'Tamil Nadu / Karnataka',
+        pos: [44, 76],
+        col: '#b71c1c',
+        pants: '#b71c1c',
+        skin: '#d4996a',
+        hc: '#1c1c1c',
+        hair: 'bun_bindi',
+        acc: 'saree_zari',
+        a2: '#ffd700',
+        sgn: 'GST Siphon',
+        sun: 'Budget Deficit Stamp',
+        sg: 'drain',
+        su: 'gst_blocks',
+        q: 'I too belong to the middle class so I can understand the pressures!',
+        speech: 'I too belong to the middle class so I can understand the pressures!',
+        pitch: 1.25,
+        pickup: 'You are the only exemption in my Union Budget with zero percent GST!',
+        desc: 'Crimson & Gold Zari Silk Saree, red bindi, silver-streaked bun, Bahi-Khata ledger.'
+      },
+      {
+        id: 'kharge',
+        n: 'Mallikarjun Kharge',
+        t: 'Opposition Leader (RS)',
+        role: 'Gavel Counter & Cooldown Silencer',
+        state: 'Karnataka',
+        pos: [35, 68],
+        col: '#ffffff',
+        pants: '#ffffff',
+        skin: '#b87d52',
+        hc: '#ffffff',
+        hair: 'glasses_scarf',
+        acc: 'angavastram',
+        a2: '#ff9933',
+        sgn: 'Point of Order Gavel',
+        sun: 'Veto of Elders',
+        sg: 'counter',
+        su: 'veto',
+        q: 'Modi ka baap bhi jayega!',
+        speech: 'Modi ka baap bhi jayega!',
+        pitch: 0.7,
+        pickup: 'Forget Rule 267—I move to suspend all business just to talk to you!',
+        desc: 'Dark frame glasses, white side hair, Congress Tricolor scarf & giant gavel.'
+      },
+      {
+        id: 'kejriwal',
+        n: 'Arvind Kejriwal',
+        t: 'AAP Convener',
+        role: 'Agile Trickster & Dharna Bubble',
+        state: 'New Delhi',
+        pos: [34, 33],
+        col: '#0277bd',
+        pants: '#1e293b',
+        skin: '#d89e6c',
+        hc: '#111111',
+        hair: 'muffler_topi',
+        acc: 'muffler',
+        a2: '#880e4f',
+        sgn: 'Muffler Hook',
+        sun: 'Dharna Electric Vortex',
+        sg: 'pull',
+        su: 'dharna',
+        q: 'Woh LG kehta hai tum nahi kar sakte, main karunga. Toh kar na… pareshaan hogaye!',
+        speech: 'Toh kar na, pareshaan hogaye hum log dhaee saal se!',
+        pitch: 1.15,
+        pickup: '200 units of electricity are free, and my vote for you is permanent!',
+        desc: 'White AAP Gandhi Cap, Maroon Muffler wrapped around neck, blue sweater & Jhadu.'
+      },
+      {
+        id: 'mamata',
+        n: 'Mamata Banerjee',
+        t: 'Chief Minister WB',
+        role: 'High-Speed Combo Sprinter',
+        state: 'West Bengal',
+        pos: [66, 48],
+        col: '#ffffff',
+        pants: '#ffffff',
+        skin: '#dfb185',
+        hc: '#1a1a1a',
+        hair: 'bun_saree',
+        acc: 'tant_blue_border',
+        a2: '#0288d1',
+        sgn: 'Hawai Chappal Flurry',
+        sun: 'Khela Hobe Volley',
+        sg: 'combo',
+        su: 'khela_volley',
+        q: 'Humba Humba Ramba Ramba Dumba Dumba!',
+        speech: 'Humba Humba Ramba Ramba Dumba Dumba!',
+        pitch: 1.35,
+        pickup: 'Khela Hobe! Pass the ball to Didi and we win the championship together!',
+        desc: 'White Tant Saree with Blue Border, low hair bun, Hawai Chappals & football.'
+      }
+    ];
+
+    /* Movement speeds per archetype */
+    const SP_MAP = { proj: 0.9, grab: 0.95, heal_aura: 1.15, burn: 0.88, confuse: 0.92, drain: 0.96, counter: 0.9, pull: 1.2, combo: 1.25 };
+
+    /* ==========================================================================
+       2. PROCEDURAL SOUND SYNTHESIS & VOICE DELIVERY
+       ========================================================================== */
+    let AC;
+    function snd(f, d = 0.1, t = 'square', v = 0.08, s = -60) {
+      try {
+        AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+        if (AC.state === 'suspended') AC.resume();
+        const o = AC.createOscillator(), n = AC.createGain(), q = AC.currentTime;
+        o.type = t;
+        o.frequency.setValueAtTime(f, q);
+        o.frequency.exponentialRampToValueAtTime(Math.max(25, f + s), q + d);
+        n.gain.setValueAtTime(v, q);
+        n.gain.exponentialRampToValueAtTime(0.001, q + d);
+        o.connect(n).connect(AC.destination);
+        o.start();
+        o.stop(q + d);
+      } catch (e) {}
+    }
+
+    let isVoiceNarratorEnabled = false;
+    let lastVoiceSpokenTime = 0;
+
+    function say(text, pitch = 1.0, force = false) {
+      try {
+        if (!('speechSynthesis' in window)) return;
+        if (!force && !isVoiceNarratorEnabled) return;
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.pitch = pitch;
+        u.rate = 1.05;
+        const voices = speechSynthesis.getVoices();
+        const inVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN') || v.lang.includes('en-IN'));
+        if (inVoice) u.voice = inVoice;
+        speechSynthesis.speak(u);
+      } catch (e) {}
+    }
+
+    function aiNarrate(thought) {
+      if (!isVoiceNarratorEnabled) return;
+      const now = performance.now();
+      if (now - lastVoiceSpokenTime < 3200) return;
+      lastVoiceSpokenTime = now;
+      say(thought, 1.0, true);
+    }
+
+    /* ==========================================================================
+       3. ARTICULATED 2.5D REAL POLITICIAN RENDERING ENGINE
+       ========================================================================== */
+    function man(g, c, x, y, f, o = {}) {
+      const s = o.s || 1;
+      const wk = o.wk ? Math.sin((o.t || 0) * 14) * 7 : 0;
+      const at = o.at || 0;
+      const TAU = Math.PI * 2;
+
+      g.save();
+      g.translate(x, y);
+      g.scale(f * s, s);
+      g.lineWidth = 2.4;
+      g.strokeStyle = '#0d130f';
+      g.lineJoin = 'round';
+
+      const R = (a, b, w, h, col) => {
+        g.fillStyle = col;
+        g.fillRect(a, b, w, h);
+        g.strokeRect(a, b, w, h);
+      };
+
+      // 1. Legs & Footwear
+      R(-10 + wk * 0.5, -34, 9, 34, c.pants);
+      R(1 - wk * 0.5, -34, 9, 34, c.pants);
+      // Chappals / Shoes
+      g.fillStyle = (c.id === 'mamata') ? '#0288d1' : '#1a1814';
+      g.fillRect(-12 + wk * 0.5, -6, 13, 7);
+      g.fillRect(-1 - wk * 0.5, -6, 13, 7);
+
+      // 2. Torso & Specific Political Attire
+      R(-14, -72, 28, 40, c.col);
+
+      if (c.acc === 'modi_jacket') {
+        g.fillStyle = '#ff9933';
+        g.fillRect(-13, -71, 26, 38);
+        g.fillStyle = '#e65100';
+        g.fillRect(-1, -68, 2, 34);
+        // Lotus pin
+        g.fillStyle = '#ffd700';
+        g.beginPath(); g.arc(6, -60, 3, 0, TAU); g.fill();
+      } else if (c.acc === 'saree_zari') {
+        // Red silk draped pallu with gold zari
+        g.fillStyle = '#d32f2f';
+        g.beginPath();
+        g.moveTo(-14, -72); g.lineTo(14, -42); g.lineTo(-14, -36);
+        g.closePath(); g.fill(); g.stroke();
+        g.strokeStyle = '#ffd700'; g.lineWidth = 2;
+        g.strokeRect(-13, -71, 26, 38);
+      } else if (c.acc === 'tant_blue_border') {
+        g.strokeStyle = '#0288d1'; g.lineWidth = 3.5;
+        g.beginPath(); g.moveTo(-14, -72); g.lineTo(14, -40); g.stroke();
+        g.strokeRect(-13, -71, 26, 38);
+      } else if (c.acc === 'muffler') {
+        // Maroon muffler wrap
+        g.fillStyle = '#880e4f';
+        g.fillRect(-13, -74, 26, 8);
+        g.fillRect(3, -70, 6, 20);
+      } else if (c.acc === 'angavastram') {
+        g.strokeStyle = '#ff9933'; g.lineWidth = 2.5;
+        g.strokeRect(-10, -71, 20, 36);
+      } else if (c.acc === 'mala') {
+        g.strokeStyle = '#5d4037'; g.lineWidth = 2.5;
+        g.beginPath(); g.arc(0, -66, 8, 0.2, Math.PI - 0.2); g.stroke();
+      }
+
+      // Arms & Strike Animation
+      if (at > 0) {
+        const L = 12 + at * 32;
+        R(6, -67, L, 9, c.col);
+        g.fillStyle = c.skin;
+        g.beginPath(); g.arc(8 + L, -62, 6, 0, TAU); g.fill(); g.stroke();
+      } else {
+        R(7, -68, 9, 26, c.col);
+        g.fillStyle = c.skin;
+        g.beginPath(); g.arc(11, -40, 5, 0, TAU); g.fill(); g.stroke();
+      }
+
+      // 3. Head & Facial Features
+      g.fillStyle = c.skin;
+      g.beginPath(); g.arc(0, -86, 13, 0, TAU); g.fill(); g.stroke();
+
+      // Hair, Beards, Glasses, Topis
+      g.fillStyle = c.hc;
+      if (c.hair === 'beard_glasses' || c.hair === 'bald_beard') {
+        g.beginPath(); g.arc(0, -84, 13, 0.2, Math.PI - 0.2); g.fill();
+        if (c.hair === 'beard_glasses') {
+          g.beginPath(); g.arc(0, -88, 14, Math.PI * 1.02, Math.PI * 1.98); g.fill(); g.stroke();
+        }
+        // Glasses
+        g.strokeStyle = '#222'; g.lineWidth = 1.6;
+        g.strokeRect(-7, -89, 6, 4.5); g.strokeRect(1, -89, 6, 4.5);
+      } else if (c.hair === 'wavy_stubble') {
+        g.beginPath(); g.arc(0, -88, 14, Math.PI * 0.9, Math.PI * 2.1); g.fill();
+        g.fillStyle = 'rgba(60,65,70,0.6)';
+        g.beginPath(); g.arc(0, -83, 11, 0.2, Math.PI - 0.2); g.fill();
+      } else if (c.hair === 'shaved_kundal') {
+        // Red tilak
+        g.fillStyle = '#d32f2f'; g.fillRect(-1, -93, 2, 5);
+        // Kundals
+        g.fillStyle = '#ffd700';
+        g.beginPath(); g.arc(-13, -86, 2, 0, TAU); g.arc(13, -86, 2, 0, TAU); g.fill();
+      } else if (c.hair === 'parted_tilak') {
+        g.beginPath(); g.arc(0, -88, 14, Math.PI * 1.02, Math.PI * 1.98); g.fill(); g.stroke();
+        g.fillStyle = '#d50000'; g.fillRect(-1, -92, 2.5, 4.5);
+      } else if (c.hair === 'bun_bindi') {
+        g.beginPath(); g.arc(0, -88, 14, Math.PI * 0.95, Math.PI * 2.05); g.fill();
+        g.beginPath(); g.arc(-10, -96, 6, 0, TAU); g.fill(); g.stroke();
+        g.fillStyle = '#b71c1c'; g.beginPath(); g.arc(0, -88, 1.8, 0, TAU); g.fill();
+      } else if (c.hair === 'glasses_scarf') {
+        g.fillRect(-12, -90, 4, 7); g.fillRect(8, -90, 4, 7);
+        g.strokeStyle = '#000'; g.lineWidth = 2;
+        g.strokeRect(-8, -89, 6.5, 4.5); g.strokeRect(1.5, -89, 6.5, 4.5);
+      } else if (c.hair === 'muffler_topi') {
+        // White AAP cap
+        g.fillStyle = '#ffffff';
+        g.beginPath(); g.moveTo(-13, -90); g.lineTo(0, -99); g.lineTo(13, -90); g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = '#111'; g.fillRect(-5, -83, 10, 2.5);
+        g.strokeStyle = '#111'; g.lineWidth = 1.4;
+        g.strokeRect(-7, -89, 6, 4); g.strokeRect(1, -89, 6, 4);
+      } else if (c.hair === 'bun_saree') {
+        g.beginPath(); g.arc(0, -88, 14, Math.PI * 0.95, Math.PI * 2.05); g.fill();
+        g.beginPath(); g.arc(-11, -85, 5, 0, TAU); g.fill();
+        g.strokeStyle = '#333'; g.lineWidth = 1.3;
+        g.strokeRect(-7, -88, 6, 4); g.strokeRect(1, -88, 6, 4);
+      }
+
+      // Eyes
+      g.fillStyle = '#111';
+      g.fillRect(3, -89, 3, 3);
+      g.fillRect(-6, -89, 3, 3);
+
+      g.restore();
+    }
+
+    /* Helper icon renderer */
+    function ic(g, t, x, y, s) {
+      const TAU = Math.PI * 2;
+      g.save(); g.translate(x, y); g.scale(s, s);
+      g.lineWidth = 2; g.strokeStyle = '#0a120d'; g.lineJoin = 'round';
+
+      if (t === 'case') {
+        g.fillStyle = '#8a5a2b'; g.fillRect(-11, -7, 22, 15); g.strokeRect(-11, -7, 22, 15);
+        g.beginPath(); g.arc(0, -7, 5, Math.PI, 0); g.stroke();
+        g.fillStyle = '#ffd700'; g.fillRect(-3, -2, 6, 5);
+      } else if (t === 'cup') {
+        g.fillStyle = '#c9764a';
+        g.beginPath(); g.moveTo(-8, -6); g.lineTo(8, -6); g.lineTo(6, 8); g.lineTo(-6, 8); g.closePath();
+        g.fill(); g.stroke();
+        g.strokeStyle = '#f4ecd6';
+        g.beginPath(); g.moveTo(-3, -9); g.quadraticCurveTo(-6, -13, -2, -15); g.moveTo(3, -9); g.quadraticCurveTo(0, -13, 4, -15); g.stroke();
+      } else if (t === 'gavel') {
+        g.rotate(-0.6);
+        g.fillStyle = '#a8743c'; g.fillRect(-2, -4, 4, 16); g.strokeRect(-2, -4, 4, 16);
+        g.fillStyle = '#6b4a22'; g.fillRect(-9, -10, 18, 8); g.strokeRect(-9, -10, 18, 8);
+      } else if (t === 'mic') {
+        g.fillStyle = '#8a94a0'; g.beginPath(); g.arc(0, -5, 6, 0, TAU); g.fill(); g.stroke();
+        g.fillRect(-1.5, 0, 3, 11); g.fillStyle = '#ffd700'; g.fillRect(-5, 10, 10, 3);
+      }
+      g.restore();
+    }
+
+    const PUN = {
+      case: 'Budget Briefcase: +50 Meter & Reset',
+      cup: 'Kullad Chai: Heals +30 HP',
+      gavel: 'Constitution Gavel: 8s of 1.5x Damage',
+      mic: 'Speaker Megaphone: Radial Knockback Blast'
+    };
+    const PT = Object.keys(PUN);
+
+    function icoURL(t) {
+      const c = document.createElement('canvas'); c.width = c.height = 36;
+      ic(c.getContext('2d'), t, 18, 18, 1.4);
+      return c.toDataURL();
+    }
+    document.getElementById('lg').innerHTML = PT.map(function(t) {
+      return '<span><img alt="" src="' + icoURL(t) + '">' + PUN[t] + '</span>';
+    }).join('');
+
+    /* ==========================================================================
+       4. PHOTOREALISTIC PARLIAMENT ARENA BACKGROUND GENERATOR
+       ========================================================================== */
+    const W = 800, H = 450, FL = 372, TAU = Math.PI * 2;
+    const BG = document.createElement('canvas');
+    BG.width = W; BG.height = H;
+    (function renderRealisticParliament() {
+      const x = BG.getContext('2d');
+      // 1. Vaulted Chamber Ceiling & Walls (Tricolor & Teakwood Accents)
+      let r = x.createLinearGradient(0, 0, 0, H);
+      r.addColorStop(0, '#0c1a13');
+      r.addColorStop(0.65, '#07100b');
+      r.addColorStop(1, '#030704');
+      x.fillStyle = r;
+      x.fillRect(0, 0, W, H);
+
+      // Grand Parliamentary Pillars
+      for (let i = 0; i < 7; i++) {
+        const px = 18 + i * 128;
+        x.fillStyle = '#2f2014';
+        x.fillRect(px, 30, 24, FL - 30);
+        x.fillStyle = '#d4af37';
+        x.fillRect(px - 4, 30, 32, 8);
+        x.fillRect(px - 4, FL - 8, 32, 8);
+      }
+
+      // Ashok Chakra Central Mural
+      x.strokeStyle = 'rgba(255, 215, 0, 0.25)';
+      x.lineWidth = 2.5;
+      x.beginPath(); x.arc(400, 72, 38, 0, TAU); x.stroke();
+      for (let i = 0; i < 24; i++) {
+        x.beginPath();
+        x.moveTo(400 + Math.cos(i * TAU / 24) * 12, 72 + Math.sin(i * TAU / 24) * 12);
+        x.lineTo(400 + Math.cos(i * TAU / 24) * 38, 72 + Math.sin(i * TAU / 24) * 38);
+        x.stroke();
+      }
+
+      // Semicircular MP Benches (Peacock Green Carpet & Teak Desks)
+      for (let i = 0; i < 3; i++) {
+        x.fillStyle = ['#1a5c3a', '#14492e', '#0e3822'][i];
+        x.beginPath();
+        x.roundRect(24 + i * 36, 256 + i * 35, W - 48 - i * 72, 28, 14);
+        x.fill();
+        x.strokeStyle = '#092115';
+        x.stroke();
+      }
+
+      // Main Lok Sabha Floor Carpet
+      const f = x.createLinearGradient(0, FL, 0, H);
+      f.addColorStop(0, '#1c7a4c');
+      f.addColorStop(0.2, '#145937');
+      f.addColorStop(1, '#092617');
+      x.fillStyle = f;
+      x.fillRect(0, FL, W, H - FL);
+
+      // Gold Trim Divider
+      x.fillStyle = '#ffd700';
+      x.fillRect(0, FL, W, 3.5);
+
+      // Floor Carpet Weave Pattern
+      x.fillStyle = 'rgba(255,255,255,0.04)';
+      for (let i = 0; i < 22; i++) x.fillRect(i * 38, FL + 3, 19, H);
+
+      // Elevated Speaker's Podium (The 272 Seats Control Point)
+      x.fillStyle = '#4a2f18';
+      x.fillRect(368, FL - 64, 64, 64);
+      x.fillStyle = '#6b4524';
+      x.fillRect(360, FL - 72, 80, 10);
+      ic(x, 'gavel', 400, FL - 84, 1.4);
+    })();
+
+    function portrait(cnv, c, s = 1) {
+      const g = cnv.getContext('2d');
+      g.clearRect(0, 0, cnv.width, cnv.height);
+      man(g, c, cnv.width / 2, cnv.height - 4, 1, { s });
+    }
+
+    /* ==========================================================================
+       5. GAME STATE & COMBAT ENGINE
+       ========================================================================== */
+    const $ = s => document.querySelector(s);
+    const cv = $('#c'), G = cv.getContext('2d');
+    const K = {}, PR = {};
+
+    window.addEventListener('keydown', e => {
+      if (!K[e.code]) PR[e.code] = 1;
+      K[e.code] = 1;
+      if (/Space|Arrow/.test(e.code)) e.preventDefault();
+    });
+    window.addEventListener('keyup', e => { K[e.code] = 0; });
+
+    let st = 'menu', A, B, PU = [], PJ = [], PA = [], FT = [];
+    let cine = null, paused = false, time = 60, intro = 0, shake = 0, T = 0, sel = 0, spawnT = 3;
+    let last = '', lastT = 0, dec = null, is2PlayerMode = false;
+    let virtualInput = { dx: 0, dy: 0 };
+    let isRuleCoachEnabled = true;
+    let coachStep = 0;
+
+    function mk(c, x, ai) {
+      return {
+        c, x, y: FL, vx: 0, vy: 0, f: x < 400 ? 1 : -1,
+        hp: 100, m: 35, seat: 200,
+        cd: { sp: 0 }, stun: 0, atk: 0, frz: 0, inv: 0, dmg: 0,
+        conf: 0, ctr: 0, t2: 0, cmb: 0, bn: 0, bt: 0, whip: 0,
+        surge: 0, ai, at: 0, thought: '',
+        inp: { l: 0, r: 0, j: 0, blk: 0, lt: 0, sp: 0, su: 0, line: 0 }
+      };
+    }
+
+    function log(w, m) {
+      const d = document.createElement('div');
+      d.className = w;
+      d.textContent = m;
+      const L = $('#log');
+      L.appendChild(d);
+      while (L.children.length > 40) L.firstChild.remove();
+      L.scrollTop = 1e5;
+    }
+
+    function updateCoachTip(text, step) {
+      if (!isRuleCoachEnabled || st !== 'play') return;
+      if (step < coachStep) return;
+      coachStep = step;
+      $('#coachText').textContent = text;
+      $('#ruleCoachBanner').classList.remove('hid');
+    }
+
+    $('#coachClose').onclick = () => {
+      $('#ruleCoachBanner').classList.add('hid');
+    };
+
+    function spark(x, y, n, col) {
+      for (let i = 0; i < n; i++) {
+        PA.push({
+          x, y,
+          vx: (Math.random() - 0.5) * 440,
+          vy: (Math.random() - 0.7) * 380,
+          l: 0.5 + Math.random() * 0.3,
+          col
+        });
+      }
+    }
+
+    function ft(t, x, y, col) {
+      FT.push({ t, x, y, l: 1, col });
+    }
+
+    /* Combat Hit Calculation */
+    function hit(a, b, d, kb, nb) {
+      if (b.inv > 0 || b.hp <= 0) return;
+      if (b.ctr > 0 && !nb) {
+        b.ctr = 0;
+        snd(900, 0.2, 'triangle');
+        ft('PARRIED!', b.x, b.y - 120, '#8ef');
+        log('me', b.c.n + ': Point of Order! Parried ' + a.c.n + '.');
+        b.m = Math.min(100, b.m + 25);
+        hit(b, a, 14, 280, 1);
+        return;
+      }
+
+      d *= (a.dmg > 0 ? 1.5 : 1);
+      if (b.blk && !nb) {
+        d *= 0.25;
+        kb *= 0.3;
+        snd(220, 0.08, 'sawtooth');
+      } else {
+        b.stun = 0.25;
+        snd(160 + Math.random() * 60, 0.12, 'square', 0.1, -90);
+      }
+
+      b.hp = Math.max(0, b.hp - d);
+      a.m = Math.min(100, a.m + d * 1.4);
+      b.m = Math.min(100, b.m + d * 0.5);
+
+      a.seat = Math.min(272, a.seat + d * 1.6);
+      b.seat = Math.max(0, b.seat - d * 0.8);
+
+      b.vx = a.f * kb;
+      b.vy = Math.min(b.vy, -130);
+      a.cmb = a.t2 > 0 ? a.cmb + 1 : 1;
+      a.t2 = 1.2;
+      spark(b.x, b.y - 60, 12, '#ffd700');
+      shake = Math.max(shake, 6);
+
+      if (a === A) {
+        updateCoachTip("Great strike! Keep attacking to charge your Super Meter to 100%!", 2);
+      }
+    }
+
+    const near = (a, b, r) => Math.abs(a.x - b.x) < r && Math.abs(a.y - b.y) < 70;
+
+    function light(a, b) {
+      a.atk = 0.28;
+      snd(320, 0.07, 'square', 0.05, -100);
+      if (near(a, b, 66 + (a.mic ? 32 : 0))) hit(a, b, 7, 220);
+    }
+
+    function special(a, b) {
+      const c = a.c;
+      a.cd.sp = 2.6;
+      a.atk = 0.3;
+      const d = Math.abs(a.x - b.x);
+      snd(520, 0.16, 'sawtooth', 0.07, -200);
+
+      if (c.sg === 'proj') {
+        PJ.push({ k: 'wave', x: a.x + a.f * 36, y: a.y - 62, vx: a.f * 460, dmg: 10, o: a, l: 2 });
+      } else if (c.sg === 'grab') {
+        if (d < 88) {
+          hit(a, b, 10, 130);
+          const s = Math.min(25, b.m);
+          b.m -= s; a.m = Math.min(100, a.m + s);
+          ft('METER SIPHONED', b.x, b.y - 120, '#ffd700');
+          log(a.ai ? 'cpu' : 'me', c.n + ' executed Operation Lotus, stealing ' + (s | 0) + '% meter!');
+        } else ft('MISS', a.x, a.y - 120, '#999');
+      } else if (c.sg === 'drain') {
+        if (d < 96) {
+          hit(a, b, 8, 110);
+          b.m = Math.max(0, b.m - 20);
+          a.hp = Math.min(100, a.hp + 8);
+          ft('28% GST DRAIN', b.x, b.y - 120, '#56d364');
+        } else ft('MISS', a.x, a.y - 120, '#999');
+      } else if (c.sg === 'pull') {
+        a.whip = 0.3;
+        if (d < 260) {
+          b.x = a.x + a.f * 52;
+          hit(a, b, 9, 70);
+        }
+      } else if (c.sg === 'combo') {
+        a.bn = 3; a.bt = 0; a.cd.sp = 3;
+      } else if (c.sg === 'counter') {
+        a.ctr = 0.85; a.cd.sp = 3.2;
+      } else if (c.sg === 'burn') {
+        PJ.push({ k: 'flame', x: a.x + a.f * 40, y: a.y - 58, vx: a.f * 380, dmg: 12, o: a, l: 1.5 });
+      } else if (c.sg === 'confuse') {
+        b.conf = 3.5;
+        ft('MOYE MOYE CONFUSION', b.x, b.y - 120, '#ff9933');
+      } else if (c.sg === 'heal_aura') {
+        a.hp = Math.min(100, a.hp + 12);
+        a.inv = 1.2;
+        ft('MOHABBAT KI DUKAAN +12 HP', a.x, a.y - 120, '#58a6ff');
+      }
+    }
+
+    function usePickupLine(a, b) {
+      snd(600, 0.15, 'sine', 0.08, 200);
+      ft('💬 "' + a.c.pickup + '"', a.x, a.y - 50, '#ffd700');
+      a.seat = Math.min(272, a.seat + 8);
+      log(a.ai ? 'cpu' : 'me', a.c.n + ' dropped a political pickup line (+8 Seats)!');
+    }
+
+    function superMove(a, b) {
+      a.m = 0;
+      cine = { a, b, t: 0 };
+      say(a.c.speech || a.c.q, a.c.pitch || 1.0, true);
+      snd(90, 0.6, 'sawtooth', 0.12, -30);
+    }
+
+    function fire(a, b) {
+      const k = a.c.su, f = a.f;
+      shake = 16;
+      snd(75, 0.5, 'sawtooth', 0.14, -30);
+      log(a.ai ? 'cpu' : 'me', 'SUPER: ' + a.c.n + ' unleashes ' + a.c.sun + '!');
+
+      if (k === 'train') {
+        PJ.push({ k: 'train', x: f > 0 ? -180 : W + 180, y: FL - 8, vx: f * 920, dmg: 32, o: a, l: 2.2, w: 260, once: 1 });
+      } else if (k === 'chain') {
+        b.frz = 3.2;
+        hit(a, b, 14, 0, 1);
+        a.chain = 3;
+      } else if (k === 'gst_blocks') {
+        a.rain = 2.4;
+        a.hp = Math.min(100, a.hp + 14);
+        a.rt = 0;
+      } else if (k === 'dharna') {
+        a.inv = 4;
+        a.surge = 4;
+        a.rt = 0;
+      } else if (k === 'khela_volley') {
+        for (let i = 0; i < 5; i++) {
+          PJ.push({ k: 'ball', x: a.x + f * 30, y: a.y - 70, vx: f * (220 + i * 75), vy: -200 - i * 65, dmg: 8, o: a, l: 5, bn: 4 });
+        }
+      } else if (k === 'veto') {
+        hit(a, b, 16, 160, 1);
+        b.cd.sp = 6;
+        b.m = 0;
+        b.stun = 1.4;
+        ft('SILENCED & VETOED', b.x, b.y - 130, '#fff');
+      } else if (k === 'bulldozer') {
+        PJ.push({ k: 'bulldozer', x: a.x, y: FL - 20, vx: f * 620, dmg: 34, o: a, l: 2.0, w: 180, once: 1 });
+      } else if (k === 'aloo_gold') {
+        for (let i = 0; i < 6; i++) {
+          setTimeout(() => {
+            PJ.push({ k: 'gold_coin', x: a.x + f * 35, y: a.y - 65, vx: f * (260 + i * 40), vy: (Math.random() - 0.5) * 80, dmg: 6, o: a, l: 3 });
+          }, i * 140);
+        }
+      } else if (k === 'rafale') {
+        for (let i = 0; i < 4; i++) {
+          setTimeout(() => {
+            PJ.push({ k: 'missile', x: b.x + (Math.random() - 0.5) * 160, y: -20, vx: 0, vy: 400, dmg: 9, o: a, l: 2 });
+          }, i * 180);
+        }
+      }
+    }
+
+    function collect(a, p) {
+      const b = a === A ? B : A;
+      snd(880, 0.15, 'triangle', 0.08, 300);
+      ft(p.t.toUpperCase(), a.x, a.y - 120, '#ffd700');
+      log(a.ai ? 'cpu' : 'me', a.c.n + ' grabbed ' + PUN[p.t].split(':')[0] + '.');
+
+      if (p.t === 'case') { a.m = Math.min(100, a.m + 50); a.cd.sp = 0; }
+      if (p.t === 'cup') a.hp = Math.min(100, a.hp + 30);
+      if (p.t === 'gavel') a.dmg = 8;
+      if (p.t === 'mic') {
+        a.blast = 0.5;
+        if (Math.abs(a.x - b.x) < 260) {
+          b.vx = (b.x > a.x ? 1 : -1) * 540;
+          b.vy = -200;
+          b.hp = Math.max(0, b.hp - 8);
+          b.stun = 0.35;
+        }
+      }
+    }
+
+    /* ==========================================================================
+       6. EXPLAINABLE AI DECISION MATRIX ("Code That Explains Itself")
+       ========================================================================== */
+    function decide(a, b) {
+      const d = Math.abs(a.x - b.x);
+      let pk = null, pd = 1e9;
+      PU.forEach(p => {
+        const q = Math.abs(p.x - a.x);
+        if (q < pd) { pd = q; pk = p; }
+      });
+
+      const U = {
+        Strike: (d < 72 ? 62 : -20) + (b.stun > 0 ? 20 : 0) - (a.atk > 0 ? 50 : 0),
+        Special: a.cd.sp > 0 ? -99 : (d < 210 ? 46 + (b.blk ? 16 : 0) : 10),
+        Super: a.m >= 100 ? 76 + (100 - b.hp) * 0.3 : -99,
+        Approach: d > 72 ? 14 + (d - 72) * 0.12 : -15,
+        Retreat: (a.hp < 30 && d < 170) ? 40 + (30 - a.hp) : (d < 45 ? 12 : -20),
+        Block: (b.atk > 0 && d < 100) ? 60 : -5,
+        Pickup: pk ? (32 + (pk.t === 'cup' ? (100 - a.hp) * 0.6 : pk.t === 'case' ? (100 - a.m) * 0.25 : 12) - pd * 0.06) : -99,
+        Podium: 20 + (272 - a.seat) * 0.05 - Math.abs(a.x - 400) * 0.04
+      };
+
+      let best = 'Strike', bv = -1e9;
+      const rows = [];
+      for (const k in U) {
+        const v = U[k] + Math.random() * 3.5;
+        rows.push([k, Math.round(U[k])]);
+        if (v > bv) { bv = v; best = k; }
+      }
+
+      const i = a.inp;
+      i.l = i.r = i.j = i.blk = 0;
+      const to = tx => { tx > a.x + 8 ? i.r = 1 : tx < a.x - 8 && (i.l = 1); };
+
+      if (best === 'Strike') i.lt = 1;
+      if (best === 'Special') i.sp = 1;
+      if (best === 'Super') i.su = 1;
+      if (best === 'Approach') to(b.x);
+      if (best === 'Retreat') to(a.x * 2 - b.x);
+      if (best === 'Block') i.blk = 1;
+      if (best === 'Pickup' && pk) to(pk.x);
+      if (best === 'Podium') to(400);
+
+      const why = {
+        Strike: 'Target is within close melee reach (' + (d | 0) + 'px)',
+        Special: a.c.sgn + ' is ready and opponent is vulnerable (' + (d | 0) + 'px)',
+        Super: 'Super meter is fully primed (' + (a.m | 0) + '%), capitalizing on opponent (' + (b.hp | 0) + ' HP)',
+        Approach: 'Target is ' + (d | 0) + 'px away, closing distance to engage',
+        Retreat: 'Health is low (' + (a.hp | 0) + ' HP), creating defensive space',
+        Block: 'Opponent is mid-swing within strike distance (' + (d | 0) + 'px)',
+        Pickup: pk ? 'Grabbing high-priority ' + PUN[pk.t].split(':')[0] + ' (' + (pd | 0) + 'px away)' : '',
+        Podium: 'Controlling Speaker Podium (' + (a.seat | 0) + '/272 seats)'
+      }[best];
+
+      dec = {
+        best, why, rows: rows.sort((x, y) => y[1] - x[1]),
+        d, a: { hp: a.hp, m: a.m, seat: a.seat },
+        b: { hp: b.hp, blk: b.blk, atk: b.atk > 0 },
+        U
+      };
+
+      a.thought = best + ' (+' + (U[best] | 0) + ')';
+
+      // Update Decision Tree UI
+      document.querySelectorAll('.dt-node').forEach(n => n.classList.remove('active'));
+      const activeNode = document.getElementById('node-' + best);
+      if (activeNode) activeNode.classList.add('active');
+      for (const k in U) {
+        const valEl = document.getElementById('val-' + k);
+        if (valEl) valEl.textContent = (U[k] >= 0 ? '+' : '') + Math.round(U[k]);
+      }
+      $('#dtTopBranch').textContent = best.toUpperCase() + ' (+' + Math.round(U[best]) + ')';
+
+      if (best !== last || T - lastT > 2.5) {
+        last = best; lastT = T;
+        log('cpu', '[AI ' + a.c.n.split(' ')[0] + '] ' + best.toUpperCase() + ': ' + why + ' (EV = +' + (U[best] | 0) + ')');
+        aiNarrate('AI ' + a.c.n.split(' ')[0] + ' decides to ' + best + '. ' + why + '.');
+      }
+    }
+
+    /* "Why Did You Do That?" Inspector Modal Population */
+    $('#whyBtn').onclick = () => {
+      if (st !== 'play' || !dec) return;
+      paused = true;
+      const mx = Math.max(...dec.rows.map(r => Math.max(r[1], 1)));
+      
+      $('#whyb').innerHTML = 
+        '<div style="background:#13241b; border-left:3px solid var(--gd); padding:8px 10px; border-radius:4px; margin-bottom:10px;">' +
+          '<div style="font-size:13px; font-weight:bold; color:var(--gd);">Chosen Action: ' + dec.best + ' (EV: +' + (dec.U[dec.best] | 0) + ')</div>' +
+          '<div style="font-size:12px; color:#fff; margin-top:2px;">' + dec.why + '.</div>' +
+        '</div>' +
+        '<div style="font-size:11px; font-weight:bold; color:var(--mu); margin-bottom:4px;">Expected Value (EV) Utility Hierarchy:</div>' +
+        '<table>' + dec.rows.map((r, i) => 
+          '<tr><td style="width:25%">' + r[0] + '</td>' +
+          '<td style="width:60%"><div class="bar" style="width:' + Math.max(2, r[1] / mx * 100) + '%; opacity:' + (i ? 0.55 : 1) + '; background:' + (i ? 'var(--mu)' : 'var(--gd)') + '"></div></td>' +
+          '<td style="width:15%; font-weight:bold; color:' + (i ? 'var(--mu)' : '#56d364') + '">' + (r[1] >= 0 ? '+' : '') + r[1] + '</td></tr>'
+        ).join('') + '</table>' +
+        '<div style="background:#08100c; border:1px solid var(--border-panel); border-radius:6px; padding:8px; margin-top:8px; font-size:10.5px; color:var(--mu); line-height:1.45;">' +
+          '<strong style="color:var(--tx)">Frame Telemetry Inputs:</strong> Distance: ' + (dec.d | 0) + 'px | AI HP: ' + (dec.a.hp | 0) + '% | AI Meter: ' + (dec.a.m | 0) + '% | Seats: ' + (dec.a.seat | 0) + '/272 | Opponent HP: ' + (dec.b.hp | 0) + '%.<br>' +
+          '<strong style="color:var(--tx)">Mathematical Formula:</strong> EV(action) = Base + (ΔHP · w1) - (Dist · w2) + Advantage.' +
+        '</div>';
+
+      // Counterfactual buttons
+      const cfContainer = $('#cfButtons');
+      cfContainer.innerHTML = '';
+      $('#cfAnswer').style.display = 'none';
+
+      dec.rows.filter(r => r[0] !== dec.best).forEach(r => {
+        const btn = document.createElement('button');
+        btn.className = 'cf-btn';
+        btn.textContent = 'Why not ' + r[0] + '?';
+        btn.onclick = () => explainCounterfactual(r[0], r[1]);
+        cfContainer.appendChild(btn);
+      });
+
+      $('#why').classList.remove('hid');
+    };
+
+    function explainCounterfactual(action, ev) {
+      const d = dec.d | 0;
+      const reasons = {
+        Strike: 'Strike yielded EV (' + ev + ') because opponent is ' + d + 'px away (requires <72px melee range). Swinging here would whiff and leave AI open to counter-attack.',
+        Special: 'Special yielded EV (' + ev + ') because signature ability is on cooldown or target is outside optimal trajectory.',
+        Super: 'Super yielded EV (' + ev + ') because Super Meter is only ' + (dec.a.m | 0) + '% (requires 100% full charge).',
+        Block: 'Block yielded EV (' + ev + ') because opponent was not actively swinging. Blocking without incoming threat wastes valuable frame advantage.',
+        Approach: 'Approach yielded EV (' + ev + ') because distance is already closed (' + d + 'px) or attacking immediately grants higher mathematical payoff.',
+        Retreat: 'Retreat yielded EV (' + ev + ') because AI HP (' + (dec.a.hp | 0) + '%) is currently stable, so ceding ground would forfeit stage control.',
+        Podium: 'Podium yielded EV (' + ev + ') because immediate combat engagement took tactical precedence over seat accumulation right now.',
+        Pickup: 'Pickup yielded EV (' + ev + ') because no high-value canteen power-up is close enough to warrant diverting from combat.'
+      };
+
+      const ans = reasons[action] || ('Action yielded lower Expected Value (' + ev + ') compared to ' + dec.best + ' (+' + (dec.U[dec.best] | 0) + ').');
+      const cfEl = $('#cfAnswer');
+      cfEl.textContent = 'Counterfactual Analysis: ' + ans;
+      cfEl.style.display = 'block';
+
+      say(ans, 1.0, true);
+    }
+
+    $('#speakWhyBtn').onclick = () => {
+      if (!dec) return;
+      say('I chose ' + dec.best + ' because ' + dec.why + '. Its expected value was positive ' + (dec.U[dec.best] | 0) + '.', 1.0, true);
+    };
+
+    $('#res').onclick = () => { $('#why').classList.add('hid'); paused = false; };
+
+    // Rulebook Toggle
+    $('#openRulebookBtn').onclick = () => { paused = true; $('#rulebook').classList.remove('hid'); };
+    $('#closeRulebookBtn').onclick = () => { $('#rulebook').classList.add('hid'); paused = false; };
+
+    // Voice commentary toggle
+    $('#toggleVoice').onclick = () => {
+      isVoiceNarratorEnabled = !isVoiceNarratorEnabled;
+      $('#toggleVoice').classList.toggle('on', isVoiceNarratorEnabled);
+      $('#toggleVoice').textContent = isVoiceNarratorEnabled ? '🎙️ AI Voice: ON' : '🎙️ AI Voice: OFF';
+      if (isVoiceNarratorEnabled) say("Speaker AI voice commentary enabled.", 1.0, true);
+    };
+
+    // Rule coach toggle
+    $('#toggleCoach').onclick = () => {
+      isRuleCoachEnabled = !isRuleCoachEnabled;
+      $('#toggleCoach').classList.toggle('on', isRuleCoachEnabled);
+      $('#toggleCoach').textContent = isRuleCoachEnabled ? '🎓 Rule Coach: ON' : '🎓 Rule Coach: OFF';
+      if (!isRuleCoachEnabled) $('#ruleCoachBanner').classList.add('hid');
+    };
+
+    /* ==========================================================================
+       7. STEP UPDATE & ARENA SIMULATION
+       ========================================================================== */
+    function step(a, b, i, dt) {
+      const c = a.c;
+      a.f = b.x > a.x ? 1 : -1;
+      a.cd.sp = Math.max(0, a.cd.sp - dt);
+
+      for (const k of ['stun', 'atk', 'frz', 'inv', 'dmg', 'conf', 'ctr', 't2', 'whip', 'surge', 'blast', 'chain', 'rain']) {
+        if (a[k] > 0) a[k] = Math.max(0, a[k] - dt);
+      }
+
+      const gr = a.y >= FL;
+      a.blk = !!(i.blk && gr && !a.atk && a.stun <= 0 && a.frz <= 0);
+      a.mic = a.blast > 0;
+
+      if (a.stun <= 0 && a.frz <= 0) {
+        let dir = (i.r - i.l) * (a.conf > 0 ? -1 : 1);
+        const sp = (SP_MAP[c.sg] || 1) * 230;
+
+        if (a.blk) a.vx *= 0.8;
+        else if (dir) a.vx = dir * sp;
+        else a.vx *= 0.8;
+
+        if (i.j && gr) {
+          a.vy = -650;
+          snd(400, 0.1, 'triangle', 0.04, 200);
+        }
+
+        if (!a.atk && a.bn <= 0) {
+          if (i.lt) light(a, b);
+          else if (i.sp && a.cd.sp <= 0) special(a, b);
+          else if (i.line) usePickupLine(a, b);
+          else if (i.su && a.m >= 100) superMove(a, b);
+        }
+      } else {
+        a.vx *= 0.9;
+      }
+
+      if (a.bn > 0) {
+        a.bt -= dt;
+        if (a.bt <= 0) {
+          a.bt = 0.12; a.bn--; a.atk = 0.2;
+          if (near(a, b, 70)) hit(a, b, 5, 160);
+        }
+      }
+
+      if (a.rain > 0) {
+        a.rt -= dt;
+        if (a.rt <= 0) {
+          a.rt = 0.11;
+          PJ.push({ k: 'coin', x: b.x + (Math.random() - 0.5) * 280, y: -10, vx: 0, vy: 220, dmg: 5, o: a, l: 3 });
+        }
+      }
+
+      if (a.surge > 0) {
+        a.rt -= dt;
+        if (a.rt <= 0) {
+          a.rt = 0.5;
+          spark(a.x, a.y - 50, 14, '#58a6ff');
+          snd(220, 0.2, 'sawtooth', 0.05, 300);
+          if (Math.abs(a.x - b.x) < 190) hit(a, b, 6, 320, 1);
+        }
+      }
+
+      a.vy += 1800 * dt;
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      if (a.y > FL) { a.y = FL; a.vy = 0; }
+      a.x = Math.max(30, Math.min(W - 30, a.x));
+
+      // Standing on Speaker's Podium grants Parliamentary Seats
+      if (Math.abs(a.x - 400) < 46 && a.y >= FL - 4) {
+        a.seat = Math.min(272, a.seat + 16 * dt);
+        if (a === A) {
+          updateCoachTip("Controlling Podium! Gaining seats towards 272 Majority victory!", 4);
+        }
+      }
+    }
+
+    function update(dt) {
+      if (intro > 0) { intro -= dt; return; }
+      time -= dt;
+
+      // P1 Inputs (Keyboard + Virtual Controller)
+      const p1 = A.inp;
+      p1.l = (K.KeyA || virtualInput.dx < -0.2) ? 1 : 0;
+      p1.r = (K.KeyD || virtualInput.dx > 0.2) ? 1 : 0;
+      p1.blk = K.KeyS ? 1 : 0;
+      p1.j = (K.KeyW || virtualInput.dy < -0.5) ? 1 : 0;
+      if (PR.KeyJ || PR.Space) p1.lt = 1;
+      if (PR.KeyK) p1.sp = 1;
+      if (PR.KeyF) p1.line = 1;
+      if (PR.KeyQ || PR.KeyL) p1.su = 1;
+
+      // P2 Controls in PvP Mode OR AI in 1P Mode
+      if (is2PlayerMode) {
+        const p2 = B.inp;
+        p2.l = K.ArrowLeft ? 1 : 0;
+        p2.r = K.ArrowRight ? 1 : 0;
+        p2.blk = K.ArrowDown ? 1 : 0;
+        p2.j = K.ArrowUp ? 1 : 0;
+        if (PR.Enter) p2.lt = 1;
+        if (PR.KeyK) p2.sp = 1;
+        if (PR.KeyP) p2.line = 1;
+        if (PR.KeyO) p2.su = 1;
+      } else {
+        B.at -= dt;
+        if (B.at <= 0) {
+          B.at = 0.22;
+          decide(B, A);
+        }
+      }
+
+      step(A, B, A.inp, dt);
+      step(B, A, B.inp, dt);
+
+      for (const x of [A, B]) x.inp.lt = x.inp.sp = x.inp.su = x.inp.line = 0;
+      for (const k in PR) delete PR[k];
+
+      // Spawn Power-Ups
+      spawnT -= dt;
+      if (spawnT <= 0) {
+        spawnT = 5;
+        PU.push({ t: PT[(Math.random() * 4) | 0], x: 120 + Math.random() * 560, y: -20, vy: 0, l: 14 });
+        updateCoachTip("Canteen item dropped! Collect Chai for health or Briefcase for meter!", 3);
+      }
+
+      PU.forEach(p => {
+        p.vy += 900 * dt;
+        p.y = Math.min(FL - 22, p.y + p.vy * dt);
+        p.l -= dt;
+        for (const f of [A, B]) {
+          if (!p.d && Math.abs(f.x - p.x) < 34 && Math.abs(f.y - p.y) < 90) {
+            p.d = 1; collect(f, p);
+          }
+        }
+      });
+      PU = PU.filter(p => !p.d && p.l > 0);
+
+      // Projectiles
+      PJ.forEach(p => {
+        p.x += p.vx * dt;
+        if (p.vy != null) {
+          p.vy += (p.k === 'ball' ? 900 : 0) * dt;
+          p.y += p.vy * dt;
+        }
+        p.l -= dt;
+
+        if (p.k === 'ball') {
+          if (p.y > FL - 12) { p.y = FL - 12; p.vy *= -0.8; p.bn--; if (p.bn < 0) p.l = 0; }
+          if (p.x < 10 || p.x > W - 10) p.vx *= -1;
+        }
+
+        const t = p.o === A ? B : A, hw = (p.w || 0) / 2 + 16;
+        if (!p.h && Math.abs(p.x - t.x) < hw && p.y > t.y - 110 && p.y < t.y + 20) {
+          hit(p.o, t, p.dmg, p.k === 'train' || p.k === 'bulldozer' ? 700 : 260, p.k === 'train' || p.k === 'ball' || p.k === 'coin');
+          if (p.once) p.h = 1; else p.l = 0;
+        }
+      });
+      PJ = PJ.filter(p => p.l > 0);
+
+      // Particles & Floating texts
+      PA.forEach(q => { q.x += q.vx * dt; q.y += q.vy * dt; q.vy += 700 * dt; q.l -= dt; });
+      PA = PA.filter(q => q.l > 0);
+      FT.forEach(f => { f.y -= 40 * dt; f.l -= dt; });
+      FT = FT.filter(f => f.l > 0);
+
+      // Super ready prompt
+      if (A.m >= 100) {
+        updateCoachTip("🔥 Super Move 100% Ready! Press [Q] / [SUPER] now!", 5);
+      }
+
+      // Check Victory Condition: HP = 0 OR 272 Seats OR Time up
+      const ko = A.hp <= 0 || B.hp <= 0 || A.seat >= 272 || B.seat >= 272 || time <= 0;
+      if (ko) finish();
+    }
+
+    function finish() {
+      st = 'over';
+      $('#ruleCoachBanner').classList.add('hid');
+      let w, why, endingCode = 1;
+      if (B.hp <= 0) { w = A; why = 'Knockout in the Well'; endingCode = 1; }
+      else if (A.hp <= 0) { w = B; why = 'Knockout in the Well'; endingCode = 2; }
+      else if (A.seat >= 272) { w = A; why = 'Achieved 272 Majority Seats'; endingCode = 1; }
+      else if (B.seat >= 272) { w = B; why = 'Achieved 272 Majority Seats'; endingCode = 2; }
+      else {
+        w = (A.hp + A.seat) >= (B.hp + B.seat) ? A : B;
+        why = 'Zero Hour Expired — Higher Parliamentary Standing';
+        endingCode = 3;
+      }
+
+      const epilogues = {
+        1: {
+          title: "THE 272+ SINGLE-PARTY MANDATE",
+          text: 'With an overwhelming majority of seats, ' + w.c.n + ' passes 48 bills in 10 minutes without debate! The opposition stages an indefinite samosa walkout.'
+        },
+        2: {
+          title: "GOVERNMENT COLLAPSE BY KNOCKOUT",
+          text: 'The ruling coalition collapses on the floor of the Lok Sabha! ' + w.c.n + ' marches to Rashtrapati Bhavan to stake claim to form the new cabinet.'
+        },
+        3: {
+          title: "HUNG PARLIAMENT & KHICHDI SARKAR",
+          text: "Neither side achieved 272! A compulsory national unity government is brokered where all leaders are mandated to share one office desk!"
+        }
+      };
+
+      const ep = epilogues[endingCode] || epilogues[1];
+
+      $('#end').innerHTML = 
+        '<h1 style="font-size:24px; color:var(--gd);">' + (w === A ? 'GOVERNMENT FORMED!' : 'THE OPPOSITION PREVAILS!') + '</h1>' +
+        '<div style="font-size:14px; font-weight:bold; color:#fff;">' + w.c.n + ' Wins: ' + why + '</div>' +
+        '<div style="font-size:12px; color:var(--gd); margin-top:2px;">' + ep.title + '</div>' +
+        '<p style="max-width:440px; font-size:12px; color:#d8e5dc; margin:6px 0;">' + ep.text + '</p>' +
+        '<canvas id="epCanvas" width="120" height="150" style="background:#0c1812; border:2px solid var(--gd); border-radius:10px;"></canvas>' +
+        '<div class="mw" style="gap:10px; margin-top:8px;">' +
+          '<button id="rm">Rematch Session</button>' +
+          '<button class="g" id="mn">Return to India Map</button>' +
+        '</div>';
+
+      $('#end').classList.remove('hid');
+      portrait($('#epCanvas'), w.c, 1.4);
+      snd(520, 0.5, 'triangle', 0.08, 400);
+
+      $('#rm').onclick = () => start(A.c, B.c);
+      $('#mn').onclick = () => {
+        $('#end').classList.add('hid');
+        $('#menu').classList.remove('hid');
+        $('#v-pad').classList.add('hid');
+        st = 'menu';
+      };
+    }
+
+    function start(p1Char, p2Char) {
+      A = mk(p1Char, 170, 0);
+      B = mk(p2Char, 630, is2PlayerMode ? 0 : 1);
+      PU = []; PJ = []; PA = []; FT = [];
+      cine = null; time = 60; intro = 1.8; spawnT = 2; dec = null; last = ''; coachStep = 0;
+      st = 'play'; paused = false;
+
+      $('#menu').classList.add('hid');
+      $('#end').classList.add('hid');
+      $('#v-pad').classList.remove('hid');
+      $('#log').innerHTML = '';
+      log('me', 'Session Commenced: ' + p1Char.n + ' vs ' + p2Char.n + '. Mode: ' + (is2PlayerMode ? '2-Player PvP' : '1P vs AI'));
+      snd(260, 0.3, 'triangle', 0.07, 200);
+
+      updateCoachTip("Rule 1: Move left/right with [A]/[D] or Virtual Joystick into debate range.", 1);
+    }
+
+    /* ==========================================================================
+       8. RENDERING: CHARACTERS, THOUGHT BUBBLES, PROJECTILES, HUD & CINEMATICS
+       ========================================================================== */
+    function drawFighter(a) {
+      const g = G;
+      g.fillStyle = 'rgba(0,0,0,0.35)';
+      g.beginPath();
+      g.ellipse(a.x, FL + 4, 26, 6, 0, 0, TAU);
+      g.fill();
+
+      if (a.inv > 0 && ((T * 14) | 0) % 2) g.globalAlpha = 0.6;
+      man(g, a.c, a.x, a.y, a.f, {
+        t: T,
+        wk: Math.abs(a.vx) > 30 && a.y >= FL - 1,
+        at: a.atk > 0 ? Math.min(1, a.atk * 5) : 0
+      });
+      g.globalAlpha = 1;
+
+      // Real-Time Animated Thought Bubble for Explainable AI
+      if (a.ai && a.thought && st === 'play') {
+        g.save();
+        g.translate(a.x, a.y - 108);
+        g.fillStyle = 'rgba(13, 24, 18, 0.9)';
+        g.strokeStyle = '#ffd700';
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.roundRect(-42, -18, 84, 18, 6);
+        g.fill();
+        g.stroke();
+        // Little pointer
+        g.beginPath();
+        g.moveTo(-4, 0); g.lineTo(0, 4); g.lineTo(4, 0);
+        g.fillStyle = '#ffd700'; g.fill();
+        // Text
+        g.fillStyle = '#fff';
+        g.font = 'bold 9.5px sans-serif';
+        g.textAlign = 'center';
+        g.fillText('💡 ' + a.thought, 0, -6);
+        g.restore();
+      }
+
+      // Freezing chains effect
+      if (a.frz > 0) {
+        g.fillStyle = 'rgba(140,200,255,0.45)';
+        g.fillRect(a.x - 24, a.y - 112, 48, 112);
+        g.strokeStyle = '#9ad'; g.lineWidth = 3;
+        for (let i = 0; i < 4; i++) {
+          g.beginPath(); g.moveTo(a.x - 30, a.y - 100 + i * 26); g.lineTo(a.x + 30, a.y - 84 + i * 26); g.stroke();
+        }
+      }
+
+      if (a.ctr > 0) {
+        g.strokeStyle = '#8ef'; g.lineWidth = 4;
+        g.beginPath(); g.arc(a.x + a.f * 8, a.y - 55, 46, -1.2, 1.2); g.stroke();
+      }
+
+      if (a.blk) {
+        g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 3;
+        g.beginPath(); g.arc(a.x + a.f * 18, a.y - 55, 40, 0, TAU); g.stroke();
+      }
+
+      if (a.surge > 0) {
+        g.strokeStyle = '#58a6ff'; g.lineWidth = 3;
+        g.beginPath(); g.arc(a.x, a.y - 55, 50 + Math.sin(T * 20) * 6, 0, TAU); g.stroke();
+      }
+
+      if (a.whip > 0) {
+        g.strokeStyle = '#ffd700'; g.lineWidth = 4;
+        g.beginPath(); g.moveTo(a.x, a.y - 60); g.lineTo(a.x + a.f * 240 * (1 - a.whip / 0.3), a.y - 60); g.stroke();
+      }
+
+      if (a.blast > 0) {
+        g.strokeStyle = '#fff'; g.lineWidth = 4;
+        g.beginPath(); g.arc(a.x, a.y - 60, (0.5 - a.blast) * 520, 0, TAU); g.stroke();
+      }
+
+      if (a.dmg > 0) ic(g, 'gavel', a.x, a.y - 124, 0.9);
+    }
+
+    function bar(x, y, w, h, v, col, r) {
+      G.fillStyle = 'rgba(0,0,0,0.75)';
+      G.fillRect(x - 2, y - 2, w + 4, h + 4);
+      G.fillStyle = col;
+      const ww = w * Math.max(0, Math.min(1, v));
+      G.fillRect(r ? x + w - ww : x, y, ww, h);
+    }
+
+    function hud() {
+      [A, B].forEach((p, i) => {
+        const r = i, x = r ? W - 312 : 12;
+        G.fillStyle = '#f5eedb';
+        G.font = '700 13px Georgia';
+        G.textAlign = r ? 'right' : 'left';
+        G.fillText(p.c.n + ' ' + (r ? (is2PlayerMode ? '(P2)' : '(CPU)') : '(P1)'), r ? W - 12 : 12, 16);
+
+        // Health Bar
+        bar(x, 22, 300, 15, p.hp / 100, p.hp < 30 ? '#e63946' : '#2ea043', r);
+        // Super Meter
+        bar(x, 42, 300, 7, p.m / 100, p.m >= 100 && ((T * 6) | 0) % 2 ? '#ffffff' : '#ffd700', r);
+
+        G.font = '11px sans-serif';
+        G.fillStyle = '#ffd700';
+        G.fillText('Seats: ' + (p.seat | 0) + '/272 ' + (p.m >= 100 ? ' ★ SUPER READY' : ''), r ? W - 12 : 12, 64);
+
+        if (p.t2 > 0 && p.cmb > 1) {
+          G.font = '800 16px Georgia';
+          G.fillStyle = '#ffffff';
+          G.fillText(p.cmb + ' Hit Combo!', r ? W - 12 : 12, 86);
+        }
+      });
+
+      // Central Zero-Hour Timer
+      G.textAlign = 'center';
+      G.fillStyle = 'rgba(0,0,0,0.75)';
+      G.beginPath(); G.arc(W / 2, 30, 22, 0, TAU); G.fill();
+      G.fillStyle = '#f5eedb';
+      G.font = '800 18px monospace';
+      G.fillText(Math.max(0, Math.ceil(time)), W / 2, 37);
+
+      // Super Button glow sync
+      const sBtn = $('#btnSuper');
+      if (sBtn && A) {
+        if (A.m >= 100) sBtn.classList.add('ready');
+        else sBtn.classList.remove('ready');
+      }
+    }
+
+    /* Dramatic Cinematic Super Mode Cutscene */
+    function drawCine(n) {
+      const c = n.a.c, t = n.t;
+      const k = Math.min(1, t / 0.25);
+      const o = t > 2 ? Math.max(0, 1 - (t - 2) / 0.3) : 1;
+      const al = Math.min(k, o), g = G;
+
+      g.save();
+      g.globalAlpha = 0.8 * al;
+      g.fillStyle = '#000';
+      g.fillRect(0, 0, W, H);
+      g.globalAlpha = al;
+
+      // Diagonal Saffron & Gold Banner
+      g.fillStyle = c.col;
+      g.beginPath();
+      g.moveTo(0, 100); g.lineTo(W, 50); g.lineTo(W, 350); g.lineTo(0, 400);
+      g.fill();
+
+      // Energy Ray Lines
+      g.strokeStyle = 'rgba(255,255,255,0.45)';
+      g.lineWidth = 2;
+      for (let i = 0; i < 36; i++) {
+        const an = i * TAU / 36, r1 = 120 + ((i * 53 + t * 900) % 300), r2 = r1 + 110;
+        g.beginPath();
+        g.moveTo(W / 2 + Math.cos(an) * r1 * 1.7, H / 2 + Math.sin(an) * r1);
+        g.lineTo(W / 2 + Math.cos(an) * r2 * 1.7, H / 2 + Math.sin(an) * r2);
+        g.stroke();
+      }
+
+      // Large Politician Caricature Slide
+      const sl = Math.pow(1 - Math.min(1, t / 0.35), 2) * -400;
+      man(g, c, 210 + sl, 430, 1, { s: 3.6, t, at: t > 0.5 ? Math.abs(Math.sin(t * 5)) : 0 });
+
+      // Super Move Title Banner
+      g.textAlign = 'left';
+      g.fillStyle = '#ffd700';
+      g.strokeStyle = '#000';
+      g.lineWidth = 6;
+      g.font = 'italic 900 42px Georgia';
+      const nx = 360 + (1 - Math.min(1, t / 0.4)) * 500;
+      g.strokeText(c.sun.toUpperCase(), nx, 160);
+      g.fillText(c.sun.toUpperCase(), nx, 160);
+
+      g.font = '800 15px sans-serif';
+      g.fillStyle = '#ffffff';
+      g.fillText('PARLIAMENTARY SUPER MOVE', nx, 100);
+
+      // Meme Dialogue Typewriter Box
+      const q = c.q.slice(0, Math.floor(t * 26)), ws = q.split(' '), ln = [''];
+      ws.forEach(w => {
+        if ((ln[ln.length - 1] + w).length > 32) ln.push('');
+        ln[ln.length - 1] += w + ' ';
+      });
+
+      g.globalAlpha = al * 0.88;
+      g.fillStyle = '#08100c';
+      g.fillRect(350, 220, 420, 24 + ln.length * 24);
+      g.globalAlpha = al;
+      g.fillStyle = '#f5eedb';
+      g.font = 'italic 16px Georgia';
+      ln.forEach((l, i) => g.fillText(l, 362, 244 + i * 24));
+      g.restore();
+    }
+
+    function proj(p) {
+      const g = G;
+      g.save();
+      g.translate(p.x, p.y);
+      const f = p.vx >= 0 ? 1 : -1;
+      g.scale(f, 1);
+
+      if (p.k === 'wave') {
+        g.strokeStyle = '#ffe28a'; g.lineWidth = 5;
+        for (let i = 0; i < 3; i++) {
+          g.globalAlpha = 1 - i * 0.3;
+          g.beginPath(); g.arc(-i * 14, 0, 16 + i * 7, -1, 1); g.stroke();
+        }
+      } else if (p.k === 'coin' || p.k === 'ball') {
+        g.fillStyle = p.k === 'coin' ? '#ffd700' : '#ffffff';
+        g.strokeStyle = '#120f18'; g.lineWidth = 2;
+        g.beginPath(); g.arc(0, 0, p.k === 'coin' ? 11 : 13, 0, TAU); g.fill(); g.stroke();
+      } else if (p.k === 'gold_coin') {
+        g.fillStyle = '#ffd700'; g.beginPath(); g.arc(0, 0, 10, 0, TAU); g.fill();
+        g.fillStyle = '#000'; g.font = 'bold 8px sans-serif'; g.fillText('24K', -7, 3);
+      } else if (p.k === 'flame') {
+        g.fillStyle = '#ff6d00'; g.beginPath(); g.arc(0, 0, 16, 0, TAU); g.fill();
+      } else if (p.k === 'missile') {
+        g.fillStyle = '#9e9e9e'; g.fillRect(-4, -12, 8, 24);
+        g.fillStyle = '#d32f2f'; g.fillRect(-4, 8, 8, 6);
+      } else if (p.k === 'bulldozer') {
+        // Armored Yellow Bulldozer Sprite
+        g.fillStyle = '#fbc02d';
+        g.fillRect(-80, -32, 160, 64);
+        g.strokeRect(-80, -32, 160, 64);
+        g.fillStyle = '#222';
+        g.fillRect(-70, 20, 140, 16);
+        g.fillStyle = '#000';
+        g.font = 'bold 14px sans-serif';
+        g.fillText('JCB BULLDOZER 🚜', -55, 6);
+      } else if (p.k === 'train') {
+        // Vande Bharat Express Locomotive
+        g.fillStyle = '#ffffff';
+        g.fillRect(-125, -60, 250, 66);
+        g.fillStyle = '#ff9933';
+        g.fillRect(-125, -34, 250, 12);
+        g.fillStyle = '#8cf';
+        for (let i = 0; i < 5; i++) g.fillRect(-110 + i * 44, -54, 30, 14);
+        g.fillStyle = '#0277bd';
+        g.font = 'bold 14px sans-serif';
+        g.fillText('VANDE BHARAT EXPRESS 🚆', -90, -10);
+        g.strokeStyle = '#120f18'; g.lineWidth = 3;
+        g.strokeRect(-125, -60, 250, 66);
+      }
+      g.restore();
+    }
+
+    function render() {
+      const g = G;
+      g.save();
+      if (shake > 0.3) {
+        g.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+        shake *= 0.85;
+      }
+      g.drawImage(BG, 0, 0);
+
+      if (st === 'menu' && !A) { g.restore(); return; }
+
+      // Speaker Podium Pulse Marker
+      const pg = 0.4 + Math.sin(T * 4) * 0.2;
+      g.strokeStyle = 'rgba(255, 215, 0, ' + pg + ')';
+      g.lineWidth = 3;
+      g.beginPath();
+      g.ellipse(400, FL + 6, 60, 9, 0, 0, TAU);
+      g.stroke();
+
+      // Power-ups
+      PU.forEach(p => {
+        g.fillStyle = 'rgba(255, 215, 0, 0.25)';
+        g.beginPath(); g.arc(p.x, p.y, 22 + Math.sin(T * 5) * 3, 0, TAU); g.fill();
+        ic(g, p.t, p.x, p.y, 1.4);
+      });
+
+      drawFighter(A);
+      drawFighter(B);
+      PJ.forEach(proj);
+
+      PA.forEach(q => {
+        g.globalAlpha = Math.min(1, q.l * 2);
+        g.fillStyle = q.col;
+        g.fillRect(q.x, q.y, 4, 4);
+      });
+      g.globalAlpha = 1;
+
+      FT.forEach(f => {
+        g.globalAlpha = Math.min(1, f.l * 2);
+        g.fillStyle = f.col;
+        g.strokeStyle = '#000';
+        g.lineWidth = 4;
+        g.font = '700 15px Georgia';
+        g.textAlign = 'center';
+        g.strokeText(f.t, f.x, f.y);
+        g.fillText(f.t, f.x, f.y);
+      });
+      g.globalAlpha = 1;
+
+      hud();
+
+      if (intro > 0) {
+        g.textAlign = 'center';
+        g.font = 'italic 800 48px Georgia';
+        g.fillStyle = '#ffd700';
+        g.strokeStyle = '#000';
+        g.lineWidth = 7;
+        g.strokeText('ORDER IN THE HOUSE!', W / 2, 220);
+        g.fillText('ORDER IN THE HOUSE!', W / 2, 220);
+      }
+
+      g.restore();
+      if (cine) drawCine(cine);
+    }
+
+    let lt0 = 0;
+    function loop(ts) {
+      const dt = Math.min(0.033, (ts - lt0) / 1000 || 0);
+      lt0 = ts;
+      T += dt;
+
+      if (st === 'play' && !paused) {
+        if (cine) {
+          cine.t += dt;
+          if (cine.t > 2.3) {
+            const c = cine; cine = null;
+            fire(c.a, c.b);
+          }
+        } else {
+          update(dt);
+        }
+      }
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    /* ==========================================================================
+       9. REALISTIC CARTOGRAPHIC INDIA MAP & CHARACTER SELECTION
+       ========================================================================== */
+    $('#map').innerHTML = 
+      '<svg viewBox="0 0 400 460" role="img" aria-label="Cartographic map of India">' +
+        '<defs>' +
+          '<pattern id="gp" width="20" height="20" patternUnits="userSpaceOnUse">' +
+            '<path d="M20 0H0V20" fill="none" stroke="#1d3023" stroke-width=".6"/>' +
+          '</pattern>' +
+          '<linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="#2a6b46"/>' +
+            '<stop offset="1" stop-color="#123a27"/>' +
+          '</linearGradient>' +
+        '</defs>' +
+        '<rect width="400" height="460" fill="url(#gp)"/>' +
+        '<polygon points="120,70 148,42 172,12 202,18 214,44 242,58 240,84 268,98 298,104 328,112 358,110 392,124 382,144 348,150 334,140 318,150 338,165 324,180 298,172 278,165 260,172 238,190 224,215 214,260 198,310 178,360 164,410 148,440 134,410 114,350 94,300 68,255 38,230 58,200 94,185 84,160 68,135 94,110" fill="url(#mg)" stroke="#ffd700" stroke-width="2.5" stroke-linejoin="round"/>' +
+        '<path d="M120,110 Q160,140 200,150 M170,180 Q210,230 180,290 M114,350 Q150,370 178,360 M238,190 L278,165" fill="none" stroke="rgba(255,215,0,0.3)" stroke-width="1.2" stroke-dasharray="3,3"/>' +
+      '</svg>';
+
+    CS.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.className = 'pin';
+      b.style.cssText = 'left:' + c.pos[0] + '%; top:' + c.pos[1] + '%;';
+      b.setAttribute('aria-label', c.n + ' (' + c.state + ')');
+      b.title = c.n + ' • ' + c.state;
+
+      const cn = document.createElement('canvas');
+      cn.width = 44; cn.height = 56;
+      portrait(cn, c, 0.6);
+      b.appendChild(cn);
+      b.append(c.n.split(' ')[0]);
+      b.onclick = () => pick(i);
+      $('#map').appendChild(b);
+    });
+
+    function pick(i) {
+      sel = i;
+      const c = CS[i];
+      document.querySelectorAll('.pin').forEach((p, j) => p.classList.toggle('on', j === i));
+
+      $('#card').innerHTML = 
+        '<canvas id="cp" width="80" height="110"></canvas>' +
+        '<h2>' + c.n + '</h2>' +
+        '<div class="sub">' + c.t + ' • ' + c.state + '</div>' +
+        '<p><strong>Archetype:</strong> ' + c.role + '</p>' +
+        '<p>' + c.desc + '</p>' +
+        '<p><strong>Special [K]:</strong> ' + c.sgn + '<br><strong>Meme Super [Q]:</strong> ' + c.sun + '</p>' +
+        '<p><strong>Viral Meme Quote:</strong> <em>"' + c.q + '"</em></p>';
+
+      portrait($('#cp'), c, 0.95);
+      say(c.t, c.pitch, true);
+    }
+
+    $('#go').onclick = () => {
+      const p1Char = CS[sel];
+      const p2Char = CS[(sel + 3) % CS.length];
+      start(p1Char, p2Char);
+    };
+
+    // 1P vs 2P Mode Toggle
+    $('#mode1p').onclick = () => {
+      is2PlayerMode = false;
+      $('#mode1p').classList.add('active');
+      $('#mode2p').classList.remove('active');
+      $('#aiBadge').innerText = 'SELF-EXPLAINING CODE';
+    };
+    $('#mode2p').onclick = () => {
+      is2PlayerMode = true;
+      $('#mode2p').classList.add('active');
+      $('#mode1p').classList.remove('active');
+      $('#aiBadge').innerText = 'PVP COMBAT REFEREE';
+    };
+
+    pick(0);
+
+    /* ==========================================================================
+       10. VIRTUAL TOUCH / MOUSE GAMEPAD CONTROLLER
+       ========================================================================== */
+    const joyBase = $('#joyBase'), joyKnob = $('#joyKnob');
+    let joyPointerId = null, joyMaxRadius = 36;
+
+    function handleJoyMove(clientX, clientY) {
+      const rect = joyBase.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      let dx = clientX - cx, dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+
+      if (dist > joyMaxRadius) {
+        dx = (dx / dist) * joyMaxRadius;
+        dy = (dy / dist) * joyMaxRadius;
+      }
+      joyKnob.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+      virtualInput.dx = dx / joyMaxRadius;
+      virtualInput.dy = dy / joyMaxRadius;
+    }
+
+    function handleJoyRelease() {
+      joyPointerId = null;
+      joyKnob.style.transform = 'translate(0px, 0px)';
+      virtualInput.dx = 0; virtualInput.dy = 0;
+    }
+
+    joyBase.addEventListener('pointerdown', e => {
+      snd(300, 0.05, 'triangle', 0.02);
+      joyPointerId = e.pointerId;
+      joyBase.setPointerCapture(e.pointerId);
+      handleJoyMove(e.clientX, e.clientY);
+    });
+    joyBase.addEventListener('pointermove', e => {
+      if (joyPointerId === e.pointerId) handleJoyMove(e.clientX, e.clientY);
+    });
+    joyBase.addEventListener('pointerup', e => {
+      if (joyPointerId === e.pointerId) handleJoyRelease();
+    });
+    joyBase.addEventListener('pointercancel', e => {
+      if (joyPointerId === e.pointerId) handleJoyRelease();
+    });
+
+    // Action button bindings with tactile feedback
+    $('#btnStrike').onpointerdown = e => { e.preventDefault(); if (A) A.inp.lt = 1; };
+    $('#btnSpecial').onpointerdown = e => { e.preventDefault(); if (A) A.inp.sp = 1; };
+    $('#btnLine').onpointerdown = e => { e.preventDefault(); if (A) A.inp.line = 1; };
+    $('#btnSuper').onpointerdown = e => { e.preventDefault(); if (A) A.inp.su = 1; };
+
+    // Toggle on-screen gamepad visibility
+    let padVisible = true;
+    $('#toggleJoy').onclick = () => {
+      padVisible = !padVisible;
+      $('#v-pad').classList.toggle('hid', !padVisible);
+      $('#toggleJoy').innerText = padVisible ? '🎮 Gamepad: ON' : '🎮 Gamepad: OFF';
+    };
+
+    // Render Speaker Mascot in Sidebar
+    (function renderMascot() {
+      const mc = $('#mascotCanvas');
+      if (!mc) return;
+      const mg = mc.getContext('2d');
+      man(mg, CS[6], 22, 36, 1, { s: 0.8 });
+    })();
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
