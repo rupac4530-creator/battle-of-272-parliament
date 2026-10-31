@@ -1,5 +1,6 @@
 # 🏛️ The Parliament House: Battle of 272 (3D Edition)
 
+[![Live Demo](https://img.shields.io/badge/🎮%20Live%20Demo-Play%20Now-success?style=for-the-badge&logo=google-chrome&logoColor=white)](https://rupac4530-creator.github.io/battle-of-272-parliament/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-rupac4530--creator%2Fbattle--of--272--parliament-181717?style=flat&logo=github)](https://github.com/rupac4530-creator/battle-of-272-parliament)
 [![React](https://img.shields.io/badge/React-19.0.1-61dafb?style=flat&logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7.0.2-3178c6?style=flat&logo=typescript)](https://www.typescriptlang.org)
@@ -9,6 +10,7 @@
 
 > **The Parliament House: Battle of 272** is an Indian Parliament Fighting & Strategy Game featuring real-time 3D politician fighters, authentic voices, interactive political arena stages, and a live Explainable AI decision engine.
 
+🌐 **Live Game Link:** [https://rupac4530-creator.github.io/battle-of-272-parliament/](https://rupac4530-creator.github.io/battle-of-272-parliament/)  
 🔗 **Official GitHub Repository:** [https://github.com/rupac4530-creator/battle-of-272-parliament](https://github.com/rupac4530-creator/battle-of-272-parliament)
 
 ---
