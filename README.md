@@ -24,6 +24,37 @@
 - 🎮 **Virtual On-Screen Gamepad:** Full mobile and touchscreen support alongside desktop keyboard controls.
 - 📜 **Rulebook Modal (Rule 267):** Authentic parliamentary rules, victory conditions, and mechanics.
 
+---
+
+## 📸 Game Screenshots & Visual Tour
+
+### 1. 18th Lok Sabha Boot Protocol (Intro Loading Sequence)
+![18th Lok Sabha Boot Protocol](screenshots/01-boot-protocol.png)
+> **What it shows:** The satirical startup boot sequence that initialises the game. Features a real-time tally counting up to 272 majority seats, a spinning Ashoka Chakra emblem, animated Speaker Om Birla gavel, and 7 rotating humorous parliamentary updates (like muting opposition microphones and boiling Adrak Chai).
+
+---
+
+### 2. Interactive Map of India (Neta Selection Screen)
+![Interactive Map of India](screenshots/02-india-map-selection.png)
+> **What it shows:** The geographic character selection screen with an accurate SVG projection of India. Netas sit pinned on their home constituencies (Yogi Adityanath in Gorakhpur, UP). Features an interactive dossier card, instant voice preview ("Play Voice"), and the astronaut Modi background with glass-morphic menus.
+
+---
+
+### 3. The Lok Sabha Chamber Arena & Explainable AI (XAI)
+![Lok Sabha Chamber Arena](screenshots/03-battle-arena-xai.png)
+> **What it shows:** Active combat in the well of the House between Narendra Modi and Yogi Adityanath. Highlights:
+> - **Central 272 Podium:** Stand on the podium to capture seats for an instant political victory.
+> - **Live Decision Tree (Right Sidebar):** Displays the bot's mathematical Expected Value (EV) calculation across 8 choices (showing AI Yogi executing `Special (+48)`).
+> - **Virtual Gamepad (Bottom):** Responsive joystick and action buttons enabling full mouse and touch control.
+
+---
+
+### 4. Parliament Canteen Power-Ups & Dynamic Combat
+![Parliament Canteen Drops & Combat](screenshots/04-canteen-drop-gameplay.png)
+> **What it shows:** High-stakes parliamentary debate mechanics with Yogi executing his *"BULLDOZER ON!"* signature move, a Parliament Canteen *Kullad Chai* drop falling near the podium to heal HP, the live Rule Coach banner at the top, and real-time telemetry streaming into Speaker Om Birla's log.
+
+---
+
 ### ✨ Latest Update: Cinematic Atmosphere & Parliamentary Boot Sequence
 
 - 🎬 **Hilarious "18th Lok Sabha Boot Protocol" Intro Animation:**
