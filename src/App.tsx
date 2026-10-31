@@ -15,7 +15,8 @@ import {
   createCombatant,
   calculateHitDamage,
   checkVictoryCondition,
-  calculateAIUtilities
+  calculateAIUtilities,
+  SHOUTS
 } from './game/logic';
 import {
   STAGE_WIDTH,
@@ -38,7 +39,7 @@ import { IndiaMapSelect } from './components/IndiaMapSelect';
 import { AIDecisionInspector } from './components/AIDecisionInspector';
 import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
-import { VirtualGamepad } from './components/VirtualGamepad';
+import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
 
 const TAU = Math.PI * 2;
 const POWERUP_TYPES = ['case', 'cup', 'gavel', 'mic'] as const;
@@ -75,7 +76,12 @@ export default function App() {
   const cameraShakeRef = useRef<number>(0);
   const nextPowerUpSpawnRef = useRef<number>(3);
   const isPausedRef = useRef<boolean>(false);
-  const virtualJoyRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+  const padRef = useRef({
+    p1: { dx: 0, dy: 0, block: false, jump: false },
+    p2: { dx: 0, dy: 0, block: false, jump: false }
+  });
+  const [isPaused, setIsPaused] = useState(false);
+  const [isSuperReadyP2, setIsSuperReadyP2] = useState(false);
   const keyboardStateRef = useRef<Record<string, boolean>>({});
   const justPressedRef = useRef<Record<string, boolean>>({});
   const lastAITimeRef = useRef<number>(0);
@@ -222,6 +228,7 @@ export default function App() {
     a.atk = 0.3;
     const dist = Math.abs(a.x - b.x);
     playSound(520, 0.16, 'sawtooth', 0.07, -200);
+    addFloatingText(SHOUTS[c.id] ?? '', a.x, a.y - 134, '#ffb347');
 
     if (c.specialType === 'proj') {
       projectilesRef.current.push({
@@ -460,6 +467,8 @@ export default function App() {
     cameraShakeRef.current = 0;
     nextPowerUpSpawnRef.current = 3;
     isPausedRef.current = false;
+    setIsPaused(false);
+    padRef.current = { p1: { dx: 0, dy: 0, block: false, jump: false }, p2: { dx: 0, dy: 0, block: false, jump: false } };
     lastAITimeRef.current = 0;
     coachStepRef.current = 0;
 
@@ -516,7 +525,7 @@ export default function App() {
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
 
-      if (ctx && canvas) {
+      if (ctx && canvas && !isPausedRef.current) {
         // Render Background
         ctx.save();
         if (cameraShakeRef.current > 0.3) {
@@ -545,10 +554,11 @@ export default function App() {
             matchTimeRef.current -= dt;
 
             // Player 1 Input Dispatch
-            p1.input.left = keyboardStateRef.current.KeyA || virtualJoyRef.current.dx < -0.2 ? 1 : 0;
-            p1.input.right = keyboardStateRef.current.KeyD || virtualJoyRef.current.dx > 0.2 ? 1 : 0;
-            p1.input.block = keyboardStateRef.current.KeyS ? 1 : 0;
-            p1.input.jump = keyboardStateRef.current.KeyW || virtualJoyRef.current.dy < -0.5 ? 1 : 0;
+            const pd1 = padRef.current.p1;
+            p1.input.left = keyboardStateRef.current.KeyA || pd1.dx < -0.25 ? 1 : 0;
+            p1.input.right = keyboardStateRef.current.KeyD || pd1.dx > 0.25 ? 1 : 0;
+            p1.input.block = keyboardStateRef.current.KeyS || pd1.block || pd1.dy > 0.65 ? 1 : 0;
+            p1.input.jump = keyboardStateRef.current.KeyW || pd1.jump || pd1.dy < -0.55 ? 1 : 0;
             if (justPressedRef.current.KeyJ || justPressedRef.current.Space) p1.input.strike = 1;
             if (justPressedRef.current.KeyK) p1.input.special = 1;
             if (justPressedRef.current.KeyF) p1.input.pickupLine = 1;
@@ -556,10 +566,11 @@ export default function App() {
 
             // Player 2 / AI Input Dispatch
             if (is2PlayerMode) {
-              p2.input.left = keyboardStateRef.current.ArrowLeft ? 1 : 0;
-              p2.input.right = keyboardStateRef.current.ArrowRight ? 1 : 0;
-              p2.input.block = keyboardStateRef.current.ArrowDown ? 1 : 0;
-              p2.input.jump = keyboardStateRef.current.ArrowUp ? 1 : 0;
+              const pd2 = padRef.current.p2;
+              p2.input.left = keyboardStateRef.current.ArrowLeft || pd2.dx < -0.25 ? 1 : 0;
+              p2.input.right = keyboardStateRef.current.ArrowRight || pd2.dx > 0.25 ? 1 : 0;
+              p2.input.block = keyboardStateRef.current.ArrowDown || pd2.block || pd2.dy > 0.65 ? 1 : 0;
+              p2.input.jump = keyboardStateRef.current.ArrowUp || pd2.jump || pd2.dy < -0.55 ? 1 : 0;
               if (justPressedRef.current.Enter) p2.input.strike = 1;
               if (justPressedRef.current.KeyP) p2.input.special = 1;
               if (justPressedRef.current.KeyO) p2.input.superMove = 1;
@@ -761,6 +772,7 @@ export default function App() {
 
             // Check Super Meter for P1
             setIsSuperReadyP1(p1.meter >= 100);
+            setIsSuperReadyP2(p2.meter >= 100);
 
             // Check Match Victory Conditions
             const ending = checkVictoryCondition(p1, p2, matchTimeRef.current);
@@ -802,7 +814,11 @@ export default function App() {
             drawPolitician(ctx, combatant.c, combatant.x, combatant.y, combatant.facing, {
               time: currentTs * 0.001,
               isWalking: Math.abs(combatant.vx) > 30 && combatant.y >= FLOOR_Y - 1,
-              attackProg: combatant.atk > 0 ? Math.min(1, combatant.atk * 5) : 0
+              attackProg: combatant.atk > 0 ? Math.min(1, combatant.atk * 5) : 0,
+              attackPhase: combatant.atk > 0 ? 1 - combatant.atk / 0.3 : 0,
+              airborne: combatant.y < FLOOR_Y - 2,
+              blocking: combatant.blocking,
+              stunned: combatant.stun > 0
             });
             ctx.globalAlpha = 1.0;
 
@@ -987,13 +1003,19 @@ export default function App() {
     ctx.restore();
   }, []);
 
-  const handleVirtualAction = (action: 'strike' | 'special' | 'line' | 'super') => {
-    if (!combatantsRef.current) return;
-    const { p1, p2 } = combatantsRef.current;
-    if (action === 'strike') performStrike(p1, p2);
-    else if (action === 'special' && p1.cdSpecial <= 0) performSpecial(p1, p2);
-    else if (action === 'line') performPickupLine(p1);
-    else if (action === 'super' && p1.meter >= 100) triggerSuperMove(p1, p2);
+  const handleVirtualAction = (player: 1 | 2, action: PadAction) => {
+    if (!combatantsRef.current || isPausedRef.current || cinematicRef.current) return;
+    const me = player === 1 ? combatantsRef.current.p1 : combatantsRef.current.p2;
+    if (action === 'strike') me.input.strike = 1;
+    else if (action === 'special') me.input.special = 1;
+    else if (action === 'line') me.input.pickupLine = 1;
+    else if (action === 'super') me.input.superMove = 1;
+  };
+
+  const togglePause = () => {
+    const next = !isPausedRef.current;
+    isPausedRef.current = next;
+    setIsPaused(next);
   };
 
   return (
@@ -1024,19 +1046,45 @@ export default function App() {
           </div>
         )}
 
-        {/* Virtual Gamepad for Mobile/Touch/Mouse */}
+        {/* On-screen controllers: full touch/mouse play, no keyboard needed */}
         {gameState === 'play' && (
-          <VirtualGamepad
-            onJoystickMove={(dx, dy) => {
-              virtualJoyRef.current = { dx, dy };
-            }}
-            onJoystickRelease={() => {
-              virtualJoyRef.current = { dx: 0, dy: 0 };
-            }}
-            onAction={handleVirtualAction}
-            isSuperReady={isSuperReadyP1}
-            isVisible={isGamepadVisible}
-          />
+          <>
+            <VirtualGamepad
+              player={1}
+              variant={is2PlayerMode ? 'left' : 'split'}
+              isVisible={isGamepadVisible}
+              isSuperReady={isSuperReadyP1}
+              onMove={(dx, dy) => { padRef.current.p1.dx = dx; padRef.current.p1.dy = dy; }}
+              onHold={(k, on) => { padRef.current.p1[k] = on; }}
+              onAction={a => handleVirtualAction(1, a)}
+            />
+            {is2PlayerMode && (
+              <VirtualGamepad
+                player={2}
+                variant="right"
+                isVisible={isGamepadVisible}
+                isSuperReady={isSuperReadyP2}
+                onMove={(dx, dy) => { padRef.current.p2.dx = dx; padRef.current.p2.dy = dy; }}
+                onHold={(k, on) => { padRef.current.p2[k] = on; }}
+                onAction={a => handleVirtualAction(2, a)}
+              />
+            )}
+            <button
+              type="button"
+              onClick={togglePause}
+              className="absolute top-2 right-2 z-40 w-10 h-10 rounded-full bg-[#0d1812]/90 border-2 border-[#ffd700] text-[#ffd700] font-black text-base shadow-xl active:scale-90"
+              aria-label="Pause"
+            >
+              {isPaused ? '▶' : '⏸'}
+            </button>
+            {isPaused && (
+              <div className="absolute inset-0 z-30 bg-black/55 flex flex-col items-center justify-center gap-3">
+                <div className="text-3xl font-extrabold text-[#ffd700] font-serif">HOUSE ADJOURNED</div>
+                <button type="button" onClick={togglePause} className="px-8 py-2.5 rounded-xl bg-[#ff9933] border-2 border-[#ffd700] text-black font-black">▶ RESUME</button>
+                <button type="button" onClick={() => { togglePause(); setGameState('menu'); }} className="px-8 py-2 rounded-xl bg-[#15221b] border border-[#1e3327] text-[#f5eedb] font-bold">🗺️ Back to Map</button>
+              </div>
+            )}
+          </>
         )}
 
         {/* India Map Character Selection Overlay */}
@@ -1088,9 +1136,23 @@ export default function App() {
           <h1 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif">
             <span>🏛️</span> Speaker AI Telemetry
           </h1>
-          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
-            {is2PlayerMode ? 'PVP REFEREE' : 'SELF-EXPLAINING CODE'}
-          </span>
+          <div className="flex items-center gap-2">
+            <a
+              href="https://github.com/rupac4530-creator/battle-of-272-parliament"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#8ea396] hover:text-[#56d364] transition flex items-center gap-1 text-[10px] font-mono"
+              title="GitHub Repository"
+            >
+              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+              GitHub
+            </a>
+            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
+              {is2PlayerMode ? 'PVP REFEREE' : 'SELF-EXPLAINING CODE'}
+            </span>
+          </div>
         </div>
 
         {/* Real-Time Live Decision Tree Visualizer */}

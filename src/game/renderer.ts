@@ -3,6 +3,7 @@
  */
 
 import { Politician, Combatant, Projectile, Particle, FloatingText, PowerUp } from './types';
+import { draw3D } from './fighter3d';
 
 const TAU = Math.PI * 2;
 export const STAGE_WIDTH = 800;
@@ -187,8 +188,15 @@ export function getChamberBackground(): HTMLCanvasElement {
   return bg;
 }
 
+function shade(hex: string, amt: number): string {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(ch => ch + ch).join('') : h, 16);
+  const cl = (v: number) => Math.max(0, Math.min(255, v));
+  return `rgb(${cl(((n >> 16) & 255) + amt)},${cl(((n >> 8) & 255) + amt)},${cl((n & 255) + amt)})`;
+}
+
 /**
- * Detailed 2.5D Articulated Politician Renderer
+ * Shaded, articulated politician renderer (3/4 view, feet at y = 0, facing +x)
  */
 export function drawPolitician(
   ctx: CanvasRenderingContext2D,
@@ -197,280 +205,188 @@ export function drawPolitician(
   y: number,
   facing: number,
   options: {
-    scale?: number;
-    time?: number;
-    isWalking?: boolean;
-    attackProg?: number;
+    scale?: number; time?: number; isWalking?: boolean; attackProg?: number;
+    attackPhase?: number; airborne?: boolean; blocking?: boolean; stunned?: boolean;
   } = {}
 ) {
+  if (draw3D(ctx, c, x, y, facing, options.scale || 1, options)) return;
   const s = options.scale || 1.0;
   const t = options.time || 0;
-  const walkBob = options.isWalking ? Math.sin(t * 14) * 7 : 0;
+  const ph = options.isWalking ? Math.sin(t * 12) : 0;
+  const br = Math.sin(t * 2.2) * 1.1;
   const at = options.attackProg || 0;
+  const OUT = '#0b100d';
+  const vest = c.accessory === 'modi_jacket' || c.accessory === 'bandhgala' || c.accessory === 'waistcoat';
+  const skirt = c.id === 'sitharaman' || c.id === 'mamata' || c.id === 'yogi';
+  const sleeve = vest ? '#f1e9d3' : c.col;
 
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(facing * s, s);
-  ctx.lineWidth = 2.4;
-  ctx.strokeStyle = '#090e0b';
   ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
 
-  const fillStrokeRect = (rx: number, ry: number, rw: number, rh: number, color: string) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeRect(rx, ry, rw, rh);
+  const limb = (x1: number, y1: number, x2: number, y2: number, w: number, col: string) => {
+    ctx.strokeStyle = OUT; ctx.lineWidth = w + 2.4;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  };
+  const disc = (cx: number, cy: number, r: number, col: string) => {
+    ctx.fillStyle = col; ctx.strokeStyle = OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill(); ctx.stroke();
+  };
+  const shoe = (sx: number, col: string) => {
+    ctx.fillStyle = col; ctx.strokeStyle = OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.ellipse(sx + 4, -2.5, 9, 4, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  };
+  const footCol = c.id === 'mamata' ? '#2aa3dc' : '#17120f';
+
+  // Ground contact shadow-free: legs
+  limb(-5, -42, -5 + ph * 9, -4, 11, shade(c.pants, -30));
+  limb(5, -42, 5 - ph * 9, -4, 11, c.pants);
+  shoe(-5 + ph * 9, footCol);
+  shoe(5 - ph * 9, footCol);
+
+  if (skirt) {
+    // Saree / robe drape over legs with pleats
+    const g = ctx.createLinearGradient(-16, 0, 16, 0);
+    g.addColorStop(0, shade(c.pants, 18)); g.addColorStop(0.6, c.pants); g.addColorStop(1, shade(c.pants, -40));
+    ctx.fillStyle = g; ctx.strokeStyle = OUT; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-14, -46); ctx.lineTo(14, -46); ctx.lineTo(17 + ph * 2, -7); ctx.lineTo(-17 + ph * 2, -7); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1;
+    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 5, -44); ctx.lineTo(i * 6.5 + ph * 2, -8); ctx.stroke(); }
+    if (c.id === 'mamata') { ctx.fillStyle = '#0288d1'; ctx.fillRect(-17 + ph * 2, -12, 34, 5); }
+    if (c.id === 'sitharaman') { ctx.fillStyle = '#ffd700'; ctx.fillRect(-17 + ph * 2, -12, 34, 4); }
+  }
+
+  // Back arm
+  limb(-11, -69, -13 - ph * 3, -45 + br, 8, shade(sleeve, -35));
+  disc(-13 - ph * 3, -42 + br, 4.2, shade(c.skin, -25));
+
+  // Torso
+  const tg = ctx.createLinearGradient(-16, 0, 16, 0);
+  const base = vest ? '#f1e9d3' : c.col;
+  tg.addColorStop(0, shade(base, 22)); tg.addColorStop(0.55, base); tg.addColorStop(1, shade(base, -45));
+  ctx.fillStyle = tg; ctx.strokeStyle = OUT; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-15, -72 + br); ctx.quadraticCurveTo(0, -77 + br, 15, -72 + br);
+  ctx.lineTo(13, -43); ctx.lineTo(-13, -43); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(-6, -62); ctx.quadraticCurveTo(-3, -52, -7, -44); ctx.moveTo(6, -60); ctx.quadraticCurveTo(8, -52, 5, -44); ctx.stroke();
+
+  if (vest) {
+    ctx.fillStyle = c.accessory === 'modi_jacket' ? '#ff9933' : c.col;
+    ctx.strokeStyle = OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-14, -71 + br); ctx.lineTo(-2, -73 + br); ctx.lineTo(-1, -44); ctx.lineTo(-13, -44); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(14, -71 + br); ctx.lineTo(2, -73 + br); ctx.lineTo(1, -44); ctx.lineTo(13, -44); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ffd700';
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(-4, -64 + i * 6, 1.1, 0, TAU); ctx.fill(); }
+    if (c.accessory === 'modi_jacket') { disc(8, -63, 2.6, '#ffd700'); }
+    if (c.accessory === 'bandhgala') { ctx.fillStyle = '#ff9933'; ctx.fillRect(6, -66, 4, 2.5); ctx.fillStyle = '#fff'; ctx.fillRect(6, -63.5, 4, 2.5); ctx.fillStyle = '#138808'; ctx.fillRect(6, -61, 4, 2.5); }
+  } else if (c.accessory === 'saree_zari' || c.accessory === 'tant_blue_border') {
+    const border = c.accessory === 'saree_zari' ? '#ffd700' : '#0288d1';
+    ctx.fillStyle = c.pants; ctx.strokeStyle = OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-14, -72 + br); ctx.lineTo(15, -70 + br); ctx.lineTo(16, -40); ctx.lineTo(-4, -42); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = border; ctx.lineWidth = 3.4;
+    ctx.beginPath(); ctx.moveTo(-14, -72 + br); ctx.lineTo(16, -42); ctx.stroke();
+  } else if (c.accessory === 'angavastram') {
+    ctx.strokeStyle = '#ff9933'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-12, -72 + br); ctx.lineTo(8, -44); ctx.stroke();
+    ctx.strokeStyle = '#138808'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-8, -72 + br); ctx.lineTo(12, -44); ctx.stroke();
+  } else if (c.accessory === 'muffler') {
+    ctx.fillStyle = '#880e4f'; ctx.strokeStyle = '#3d0020'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.roundRect(-13, -79 + br, 26, 10, 4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(4, -72, 8, 26, 3); ctx.fill(); ctx.stroke();
+  } else if (c.accessory === 'mala') {
+    ctx.strokeStyle = '#4e342e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -73 + br, 9, 0.1, Math.PI - 0.1); ctx.stroke();
+    ctx.fillStyle = '#3e2723';
+    for (let m = 0; m < 6; m++) { const a = 0.3 + m * 0.5; ctx.beginPath(); ctx.arc(Math.cos(a) * 9, -73 + br + Math.sin(a) * 9, 1.7, 0, TAU); ctx.fill(); }
+  }
+  if (c.id === 'rahul') { ctx.fillStyle = '#00b4d8'; ctx.fillRect(-9, -60, 18, 2); }
+
+  // Front arm
+  if (at > 0) {
+    const ext = 16 + at * 30;
+    limb(9, -68, 9 + ext, -66 - at * 3, 9, sleeve);
+    disc(11 + ext, -66 - at * 3, 5.2, c.skin);
+  } else {
+    limb(11, -69, 14 + ph * 3, -44 + br, 9, sleeve);
+    disc(14 + ph * 3, -41 + br, 4.6, c.skin);
+  }
+
+  // Neck
+  ctx.fillStyle = shade(c.skin, -28); ctx.fillRect(-4, -82 + br, 8, 9);
+
+  // Hair behind head (buns)
+  if (c.hairStyle === 'bun_bindi' || c.hairStyle === 'bun_saree') disc(-12, -95 + br, 6, c.hairColor);
+
+  // Head
+  ctx.save();
+  ctx.translate(0, br);
+  const hg = ctx.createRadialGradient(4, -94, 2, 0, -90, 17);
+  hg.addColorStop(0, shade(c.skin, 22)); hg.addColorStop(0.7, c.skin); hg.addColorStop(1, shade(c.skin, -38));
+  ctx.fillStyle = hg; ctx.strokeStyle = OUT; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(0, -90, 12, 14, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  // ear + nose
+  ctx.fillStyle = shade(c.skin, -12);
+  ctx.beginPath(); ctx.ellipse(-11, -89, 2.6, 4, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10, -91); ctx.lineTo(14.5, -85); ctx.lineTo(10, -84); ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  const cap = (col: string) => {
+    ctx.fillStyle = col; ctx.strokeStyle = OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-12.6, -90); ctx.ellipse(0, -91, 12.8, 15, 0, Math.PI, TAU);
+    ctx.lineTo(12.6, -92); ctx.quadraticCurveTo(2, -100, -12.6, -90); ctx.fill(); ctx.stroke();
+  };
+  const jaw = (col: string, depth: number) => {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(-11, -88); ctx.quadraticCurveTo(-9, -76 + depth, 0, -75 + depth);
+    ctx.quadraticCurveTo(9, -76 + depth, 11, -87); ctx.quadraticCurveTo(0, -83, -11, -88); ctx.fill();
   };
 
-  // 1. Legs and Formal Footwear
-  fillStrokeRect(-10 + walkBob * 0.5, -34, 9, 34, c.pants);
-  fillStrokeRect(1 - walkBob * 0.5, -34, 9, 34, c.pants);
+  const hs = c.hairStyle;
+  if (hs === 'beard_glasses') { cap('#f4f4f4'); jaw('#f1f1f1', 0); }
+  else if (hs === 'bald_beard') { jaw('rgba(225,225,225,0.9)', -4); ctx.fillStyle = '#cfd4d6'; ctx.fillRect(-12, -92, 3, 6); }
+  else if (hs === 'wavy_stubble') {
+    cap('#1f2528'); ctx.beginPath(); ctx.arc(-9, -102, 4, 0, TAU); ctx.arc(-2, -104, 4, 0, TAU); ctx.arc(6, -102, 4, 0, TAU); ctx.fill();
+    jaw('rgba(70,74,78,0.55)', -4);
+  } else if (hs === 'shaved_kundal') {
+    ctx.fillStyle = 'rgba(40,30,25,0.28)'; ctx.beginPath(); ctx.ellipse(0, -93, 11.5, 11, 0, Math.PI, TAU); ctx.fill();
+    ctx.fillStyle = '#d32f2f'; ctx.fillRect(-1.2, -100, 2.4, 8); ctx.fillStyle = '#ffb300'; ctx.fillRect(-4.5, -99, 9, 1.6);
+    disc(-12, -84, 2.4, '#ffd700');
+  } else if (hs === 'parted_tilak') {
+    cap('#8e9aa0'); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(4, -104); ctx.lineTo(8, -95); ctx.stroke();
+    ctx.fillStyle = '#d50000'; ctx.fillRect(-1, -98, 2.4, 6);
+  } else if (hs === 'bun_bindi') { cap('#1a1a1a'); ctx.fillStyle = '#c8ccd0'; ctx.fillRect(-2, -104, 2, 9); disc(-11, -83, 1.8, '#ffd700'); }
+  else if (hs === 'glasses_scarf') { cap('#f5f5f5'); }
+  else if (hs === 'muffler_topi') {
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = OUT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-12, -93); ctx.quadraticCurveTo(0, -112, 12, -93); ctx.lineTo(10, -90); ctx.lineTo(-10, -90); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#0277bd'; ctx.fillRect(-10, -92, 20, 2); ctx.fillStyle = '#111'; ctx.font = 'bold 5px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('AAP', 0, -96);
+  } else if (hs === 'bun_saree') { cap('#161616'); ctx.fillStyle = '#d9dde0'; ctx.fillRect(-4, -104, 2, 8); }
 
-  // Shoes / Chappals
-  if (c.id === 'mamata') {
-    // White & Cyan Blue Rubber Hawai Chappal
-    ctx.fillStyle = '#0288d1';
-    ctx.fillRect(-12 + walkBob * 0.5, -6, 13, 7);
-    ctx.fillRect(-1 - walkBob * 0.5, -6, 13, 7);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-10 + walkBob * 0.5, -7, 3, 4);
-    ctx.fillRect(1 - walkBob * 0.5, -7, 3, 4);
-  } else {
-    // Polished Black Formal Oxford Shoes
-    ctx.fillStyle = '#151515';
-    ctx.fillRect(-12 + walkBob * 0.5, -6, 13, 7);
-    ctx.fillRect(-1 - walkBob * 0.5, -6, 13, 7);
-    ctx.fillStyle = '#333333';
-    ctx.fillRect(-12 + walkBob * 0.5, -6, 13, 2);
-    ctx.fillRect(-1 - walkBob * 0.5, -6, 13, 2);
+  // Face: brows, eyes, mouth
+  ctx.strokeStyle = hs === 'beard_glasses' || hs === 'glasses_scarf' ? '#cfcfcf' : '#1a1410'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(-4, -96); ctx.lineTo(1, -96.5); ctx.moveTo(4, -96.5); ctx.lineTo(9, -96); ctx.stroke();
+  [[-1.5], [6.5]].forEach(([ex]) => {
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#222'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.ellipse(ex, -92, 2.6, 1.9, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#1a0f08'; ctx.beginPath(); ctx.arc(ex + 0.8, -92, 1.1, 0, TAU); ctx.fill();
+  });
+  if (c.id === 'rajnath' || c.id === 'kejriwal' || c.id === 'kharge') { ctx.fillStyle = c.id === 'kejriwal' ? '#111' : '#cfd4d6'; ctx.fillRect(0, -83.5, 10, 2.2); }
+  ctx.strokeStyle = '#5a2a22'; ctx.lineWidth = 1.5; ctx.fillStyle = '#4a1612';
+  if (at > 0) { ctx.beginPath(); ctx.ellipse(5, -80, 3.2, 2.6, 0, 0, TAU); ctx.fill(); }
+  else { ctx.beginPath(); ctx.moveTo(1, -80); ctx.quadraticCurveTo(5, -78.5, 9, -80.5); ctx.stroke(); }
+  if (c.id === 'sitharaman' || hs === 'bun_bindi') disc(3.5, -98, 1.7, '#b71c1c');
+
+  // Spectacles
+  if (['beard_glasses', 'bald_beard', 'glasses_scarf', 'muffler_topi', 'bun_saree'].includes(hs)) {
+    ctx.strokeStyle = hs === 'glasses_scarf' ? '#000' : '#2a2a2a'; ctx.lineWidth = hs === 'glasses_scarf' ? 2 : 1.3;
+    ctx.fillStyle = 'rgba(180,215,235,0.25)';
+    ctx.beginPath(); ctx.roundRect(-5.5, -95, 7.5, 6, 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(3, -95, 7.5, 6, 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, -92.5); ctx.lineTo(3, -92.5); ctx.moveTo(-5.5, -92.5); ctx.lineTo(-11, -93); ctx.stroke();
   }
-
-  // 2. Torso & Specific Authentic Clothing
-  fillStrokeRect(-14, -72, 28, 40, c.col);
-
-  // Attire Overlays
-  if (c.accessory === 'modi_jacket') {
-    // Saffron Modi Jacket with Folded Collar, Buttons & Gold Lotus
-    ctx.fillStyle = '#ff9933';
-    ctx.fillRect(-13, -71, 26, 38);
-    ctx.strokeStyle = '#c65100';
-    ctx.strokeRect(-13, -71, 26, 38);
-    // Button Line
-    ctx.fillStyle = '#e65100';
-    ctx.fillRect(-1, -68, 2, 34);
-    for (let b = 0; b < 5; b++) {
-      ctx.fillStyle = '#ffd700';
-      ctx.beginPath();
-      ctx.arc(0, -66 + b * 7, 1.4, 0, TAU);
-      ctx.fill();
-    }
-    // Gilded Lotus Pin on Lapel
-    ctx.fillStyle = '#ffd700';
-    ctx.beginPath();
-    ctx.arc(6, -62, 3.2, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = '#e65100';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  } else if (c.accessory === 'saree_zari') {
-    // Deep Crimson Silk Saree with Gold Zari Border Drape
-    ctx.fillStyle = '#b71c1c';
-    ctx.beginPath();
-    ctx.moveTo(-14, -72);
-    ctx.lineTo(14, -42);
-    ctx.lineTo(-14, -36);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // Shimmering Golden Zari Border
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(-14, -72);
-    ctx.lineTo(14, -42);
-    ctx.stroke();
-  } else if (c.accessory === 'tant_blue_border') {
-    // White Tant Saree with striking Blue Border
-    ctx.strokeStyle = '#0288d1';
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(-14, -72);
-    ctx.lineTo(14, -40);
-    ctx.stroke();
-  } else if (c.accessory === 'muffler') {
-    // Thick Maroon Woolen Muffler wrapped snugly
-    ctx.fillStyle = '#880e4f';
-    ctx.fillRect(-13, -74, 26, 9);
-    ctx.fillRect(3, -70, 7, 22);
-    ctx.strokeStyle = '#4a0026';
-    ctx.strokeRect(-13, -74, 26, 9);
-  } else if (c.accessory === 'angavastram') {
-    // Congress Tricolor / Saffron Angavastram Stole
-    ctx.strokeStyle = '#ff9933';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(-11, -71, 22, 36);
-  } else if (c.accessory === 'mala') {
-    // Dark Brown Rudraksha Mala
-    ctx.strokeStyle = '#4e342e';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, -66, 8, 0.2, Math.PI - 0.2);
-    ctx.stroke();
-    for (let m = 0; m < 5; m++) {
-      const a = 0.4 + m * 0.55;
-      ctx.fillStyle = '#3e2723';
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * 8, -66 + Math.sin(a) * 8, 1.8, 0, TAU);
-      ctx.fill();
-    }
-  } else if (c.accessory === 'bandhgala') {
-    // Dark Bandhgala Vest with Gilded Buttons & Pocket Square
-    ctx.fillStyle = '#1b3b22';
-    ctx.fillRect(-12, -70, 24, 36);
-    ctx.fillStyle = '#ffd700';
-    for (let b = 0; b < 4; b++) {
-      ctx.fillRect(-1, -66 + b * 8, 2, 3);
-    }
-    // Tricolor pocket square
-    ctx.fillStyle = '#ff9933';
-    ctx.fillRect(5, -66, 4, 3);
-    ctx.fillStyle = '#138808';
-    ctx.fillRect(5, -63, 4, 3);
-  }
-
-  // 3. Arms & Punch/Strike Animation
-  if (at > 0) {
-    const ext = 14 + at * 30;
-    fillStrokeRect(6, -67, ext, 9, c.col);
-    ctx.fillStyle = c.skin;
-    ctx.beginPath();
-    ctx.arc(8 + ext, -62, 6, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-  } else {
-    fillStrokeRect(7, -68, 9, 26, c.col);
-    ctx.fillStyle = c.skin;
-    ctx.beginPath();
-    ctx.arc(11, -40, 5, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-  }
-
-  // 4. Head, Complexion & Expressions
-  ctx.fillStyle = c.skin;
-  ctx.beginPath();
-  ctx.arc(0, -86, 13, 0, TAU);
-  ctx.fill();
-  ctx.stroke();
-
-  // Distinct Facial Features & Hair
-  ctx.fillStyle = c.hairColor;
-  if (c.hairStyle === 'beard_glasses' || c.hairStyle === 'bald_beard') {
-    // White/Grey beard & mustache
-    ctx.beginPath();
-    ctx.arc(0, -84, 13, 0.2, Math.PI - 0.2);
-    ctx.fill();
-    if (c.hairStyle === 'beard_glasses') {
-      ctx.beginPath();
-      ctx.arc(0, -88, 14, Math.PI * 1.02, Math.PI * 1.98);
-      ctx.fill();
-      ctx.stroke();
-    }
-    // Rimless / Metal Spectacles
-    ctx.strokeStyle = '#222222';
-    ctx.lineWidth = 1.6;
-    ctx.strokeRect(-7, -89, 6, 4.5);
-    ctx.strokeRect(1, -89, 6, 4.5);
-    ctx.beginPath();
-    ctx.moveTo(-1, -87);
-    ctx.lineTo(1, -87);
-    ctx.stroke();
-  } else if (c.hairStyle === 'wavy_stubble') {
-    // Wavy Dark Hair & Stubble
-    ctx.beginPath();
-    ctx.arc(0, -88, 14, Math.PI * 0.9, Math.PI * 2.1);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(60, 65, 70, 0.55)';
-    ctx.beginPath();
-    ctx.arc(0, -83, 11, 0.2, Math.PI - 0.2);
-    ctx.fill();
-  } else if (c.hairStyle === 'shaved_kundal') {
-    // Shaved head with Red Tilak & Golden Kundals
-    ctx.fillStyle = '#d32f2f';
-    ctx.fillRect(-1, -94, 2.5, 6);
-    ctx.fillStyle = '#ffd700';
-    ctx.beginPath();
-    ctx.arc(-13, -86, 2.5, 0, TAU);
-    ctx.arc(13, -86, 2.5, 0, TAU);
-    ctx.fill();
-  } else if (c.hairStyle === 'parted_tilak') {
-    // Grey Parted Hair with Tilak
-    ctx.beginPath();
-    ctx.arc(0, -88, 14, Math.PI * 1.02, Math.PI * 1.98);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#d50000';
-    ctx.fillRect(-1.2, -93, 2.5, 5);
-  } else if (c.hairStyle === 'bun_bindi') {
-    // Silver-streaked low bun & red bindi
-    ctx.beginPath();
-    ctx.arc(0, -88, 14, Math.PI * 0.95, Math.PI * 2.05);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(-10, -96, 6, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#b71c1c';
-    ctx.beginPath();
-    ctx.arc(0, -88, 2, 0, TAU);
-    ctx.fill();
-  } else if (c.hairStyle === 'glasses_scarf') {
-    // White side hair & large spectacles
-    ctx.fillRect(-12, -90, 4, 7);
-    ctx.fillRect(8, -90, 4, 7);
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(-8, -89, 6.5, 4.5);
-    ctx.strokeRect(1.5, -89, 6.5, 4.5);
-  } else if (c.hairStyle === 'muffler_topi') {
-    // White AAP Gandhi Topi with lettering
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(-13, -90);
-    ctx.lineTo(0, -100);
-    ctx.lineTo(13, -90);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#111111';
-    ctx.font = 'bold 5px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('AAP', 0, -91);
-    // Mustache & Spectacles
-    ctx.fillStyle = '#111111';
-    ctx.fillRect(-5, -83, 10, 2.5);
-    ctx.strokeStyle = '#111111';
-    ctx.lineWidth = 1.4;
-    ctx.strokeRect(-7, -89, 6, 4);
-    ctx.strokeRect(1, -89, 6, 4);
-  } else if (c.hairStyle === 'bun_saree') {
-    // Low hair bun & spectacles
-    ctx.beginPath();
-    ctx.arc(0, -88, 14, Math.PI * 0.95, Math.PI * 2.05);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(-11, -85, 5, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = '#333333';
-    ctx.lineWidth = 1.3;
-    ctx.strokeRect(-7, -88, 6, 4);
-    ctx.strokeRect(1, -88, 6, 4);
-  }
-
-  // Eyes
-  ctx.fillStyle = '#111111';
-  ctx.fillRect(3, -89, 3, 3);
-  ctx.fillRect(-6, -89, 3, 3);
-
+  ctx.restore();
   ctx.restore();
 }
 

@@ -246,6 +246,18 @@ export const POLITICIANS: Politician[] = [
   }
 ];
 
+export const SHOUTS: Record<string, string> = {
+  modi: 'MITRON!',
+  shah: 'ARRE BHAI, BAITHO!',
+  rahul: 'ALOO DALO, SONA NIKALO!',
+  yogi: 'BULLDOZER ON!',
+  rajnath: 'MOYE MOYE!',
+  sitharaman: 'MIDDLE CLASS ALERT!',
+  kharge: 'POINT OF ORDER!',
+  kejriwal: 'TO KAR NA!',
+  mamata: 'KHELA HOBE!'
+};
+
 export const SPEED_FACTORS: Record<string, number> = {
   proj: 0.95,
   grab: 0.95,

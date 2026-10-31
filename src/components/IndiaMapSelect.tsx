@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Politician } from '../game/types';
 import { POLITICIANS } from '../game/logic';
 import { drawPolitician } from '../game/renderer';
 import { speakPoliticianVoice } from '../game/audio';
+import { INDIA_PATH, ISLANDS, CITIES, REGIONS, LEADER_LOC, proj } from '../game/indiaGeo';
 
 interface IndiaMapSelectProps {
   selectedPolitician: Politician;
@@ -22,6 +23,12 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   onOpenRulebook
 }) => {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const f = () => setTick(n => n + 1);
+    window.addEventListener('fighter3d-ready', f);
+    return () => window.removeEventListener('fighter3d-ready', f);
+  }, []);
 
   // Render preview portrait whenever selectedPolitician changes
   useEffect(() => {
@@ -31,7 +38,7 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawPolitician(ctx, selectedPolitician, canvas.width / 2, canvas.height - 4, 1, { scale: 0.95 });
-  }, [selectedPolitician]);
+  }, [selectedPolitician, tick]);
 
   const handlePick = (p: Politician) => {
     onSelect(p);
@@ -56,10 +63,10 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
           🇮🇳 संसद्-भवनम् • THE PARLIAMENT HOUSE
         </div>
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#ffd700] tracking-wide font-serif">
-          FULL CARTOGRAPHIC MAP OF INDIA
+          CHOOSE YOUR NETA — MAP OF INDIA
         </h1>
         <p className="text-[#8ea396] text-[11px] sm:text-xs">
-          Select any of the 9 National Leaders across India's Federal States & Ministries!
+          Tap a leader on their home turf. Pins sit at their real cities.
         </p>
 
         {/* Mode Selector */}
@@ -93,6 +100,18 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
           >
             📖 Rule 267
           </button>
+          <a
+            href="https://github.com/rupac4530-creator/battle-of-272-parliament"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1 rounded-full text-xs font-bold bg-[#1e3327] text-white border border-[#56d364]/40 hover:bg-[#284434] flex items-center gap-1.5 transition"
+            title="GitHub Repository"
+          >
+            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            GitHub
+          </a>
         </div>
       </div>
 
@@ -123,146 +142,74 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
             {/* Delhi Capital National Glow */}
             <rect width="500" height="580" fill="url(#delhiGlow)" />
 
-            {/* COMPLETE MAINLAND INDIA PATH (including J&K, Ladakh, full Northeast Seven Sisters, Gujarat Gulfs, South Peninsula) */}
-            <path
-              d="
-                M 195,15
-                C 210,18 228,26 238,42
-                C 246,55 258,68 266,80
-                C 272,92 265,108 256,120
-                C 248,130 240,140 244,152
-                C 248,162 260,170 274,178
-                C 288,185 304,192 312,192
-                C 316,182 318,170 324,166
-                C 328,166 330,176 332,186
-                C 338,188 350,188 360,188
-                C 368,182 376,170 390,158
-                C 410,142 438,138 456,150
-                C 472,160 482,178 476,196
-                C 470,214 458,230 452,246
-                C 446,262 440,278 434,292
-                C 426,306 414,316 404,306
-                C 396,298 392,284 388,272
-                C 382,256 370,250 354,250
-                C 344,250 334,242 332,230
-                C 330,220 324,208 316,212
-                C 310,218 310,234 316,248
-                C 322,262 330,278 332,294
-                C 334,310 326,326 316,338
-                C 304,352 292,368 284,386
-                C 276,404 268,424 256,442
-                C 244,460 234,480 228,502
-                C 222,524 214,546 204,568
-                C 198,580 192,588 186,584
-                C 180,576 176,558 172,542
-                C 168,524 162,504 158,484
-                C 152,462 144,440 140,418
-                C 136,396 132,374 130,352
-                C 128,336 126,324 132,312
-                C 134,308 126,306 118,308
-                C 106,312 94,324 82,326
-                C 68,328 54,318 52,302
-                C 50,286 64,272 78,266
-                C 88,262 92,254 84,250
-                C 72,246 58,240 56,226
-                C 54,212 68,206 82,204
-                C 98,202 110,200 114,188
-                C 120,174 126,156 132,140
-                C 138,124 148,110 154,94
-                C 160,78 162,60 168,44
-                C 174,28 184,14 195,15
-                Z
-              "
-              fill="url(#indiaLandGrad)"
-              stroke="#ffd700"
-              strokeWidth="2.5"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
+            {/* Sea glow + official India outline */}
+            <path d={INDIA_PATH} fill="none" stroke="rgba(255,215,0,0.16)" strokeWidth="9" strokeLinejoin="round" />
+            <path d={INDIA_PATH} fill="url(#indiaLandGrad)" stroke="#ffd700" strokeWidth="2" strokeLinejoin="round" />
 
-            {/* ANDAMAN & NICOBAR ISLANDS (Bay of Bengal) */}
-            <g fill="#ffd700" stroke="#040906" strokeWidth="0.8">
-              <ellipse cx="440" cy="450" rx="3" ry="8" />
-              <ellipse cx="443" cy="470" rx="3.5" ry="9" />
-              <ellipse cx="445" cy="492" rx="3" ry="7" />
-              <ellipse cx="448" cy="514" rx="2.5" ry="6" />
-              <ellipse cx="452" cy="535" rx="3.5" ry="8" />
-              <text x="444" y="555" fill="#8ea396" fontSize="7" fontWeight="bold" textAnchor="middle">
-                ANDAMAN &amp; NICOBAR
-              </text>
-            </g>
+            {/* Island groups */}
+            {ISLANDS.map(isl => {
+              const [lx, ly] = proj(isl.label[0], isl.label[1]);
+              return (
+                <g key={isl.name}>
+                  {isl.pts.map(([lo, la], i) => {
+                    const [x, y] = proj(lo, la);
+                    return <ellipse key={i} cx={x} cy={y} rx="2.6" ry="4.2" fill="#1e5c38" stroke="#ffd700" strokeWidth="1" />;
+                  })}
+                  <text x={lx} y={ly} fill="#8ea396" fontSize="7" fontWeight="bold" textAnchor="middle">{isl.name}</text>
+                </g>
+              );
+            })}
 
-            {/* LAKSHADWEEP ISLANDS (Arabian Sea) */}
-            <g fill="#ffd700" stroke="#040906" strokeWidth="0.8">
-              <circle cx="120" cy="475" r="2.5" />
-              <circle cx="118" cy="490" r="3" />
-              <circle cx="122" cy="505" r="2.5" />
-              <circle cx="125" cy="520" r="3" />
-              <text x="122" y="535" fill="#8ea396" fontSize="7" fontWeight="bold" textAnchor="middle">
-                LAKSHADWEEP
-              </text>
-            </g>
+            {/* State / region labels */}
+            {REGIONS.map(r => {
+              const [x, y] = proj(r.ll[0], r.ll[1]);
+              return (
+                <text key={r.name} x={x} y={y} fill="rgba(255,255,255,0.28)" fontSize="7.5" fontWeight="bold" textAnchor="middle">
+                  {r.name}
+                </text>
+              );
+            })}
 
-            {/* FEDERAL STATE BOUNDARY PATHS (Dashed Gold / Muted Green) */}
-            <g fill="none" stroke="rgba(255, 215, 0, 0.35)" strokeWidth="1" strokeDasharray="3,3">
-              {/* Kashmir / Ladakh south border */}
-              <path d="M 160,88 Q 200,95 250,90" />
-              {/* Punjab & Himachal */}
-              <path d="M 148,118 Q 190,125 240,138" />
-              {/* Rajasthan & Gujarat border */}
-              <path d="M 112,190 Q 150,195 190,195" />
-              {/* UP / MP border line */}
-              <path d="M 190,195 Q 240,210 290,215" />
-              {/* Maharashtra / Gujarat */}
-              <path d="M 118,308 Q 160,290 200,285" />
-              {/* Maharashtra / Karnataka / Telangana */}
-              <path d="M 132,352 Q 180,340 240,335" />
-              {/* Karnataka / Kerala / Tamil Nadu */}
-              <path d="M 158,484 Q 190,490 228,502" />
-              {/* West Bengal / Bihar / Jharkhand */}
-              <path d="M 280,210 Q 300,230 315,260" />
-              {/* Northeast Corridor / Assam / Arunachal */}
-              <path d="M 332,186 Q 370,210 420,200" />
-              <path d="M 360,188 Q 380,240 430,240" />
-            </g>
-
-            {/* Geopolitical Region Watermarks */}
-            <text x="210" y="55" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">LADAKH</text>
-            <text x="175" y="75" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">J&amp;K</text>
-            <text x="135" y="165" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">RAJASTHAN</text>
-            <text x="225" y="200" fill="rgba(255,255,255,0.3)" fontSize="9" fontWeight="bold">UTTAR PRADESH</text>
-            <text x="75" y="290" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">GUJARAT</text>
-            <text x="150" y="325" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">MAHARASHTRA</text>
-            <text x="160" y="440" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">KARNATAKA</text>
-            <text x="185" y="530" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">TAMIL NADU</text>
-            <text x="315" y="275" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">BENGAL</text>
-            <text x="390" y="210" fill="rgba(255,255,255,0.3)" fontSize="8" fontWeight="bold">ASSAM</text>
+            {/* Major cities */}
+            {CITIES.map(c => {
+              const [x, y] = proj(c.ll[0], c.ll[1]);
+              return (
+                <g key={c.name}>
+                  <circle cx={x} cy={y} r="2" fill="#f5eedb" opacity="0.8" />
+                  <text x={x + 4} y={y + 3} fill="#cfe3d4" fontSize="7" opacity="0.8">{c.name}</text>
+                </g>
+              );
+            })}
           </svg>
 
-          {/* Accurate Leader Pins Positioned on the Full Map */}
+          {/* Leader pins at their real home cities */}
           {POLITICIANS.map(p => {
             const isSelected = p.id === selectedPolitician.id;
+            const loc = LEADER_LOC[p.id];
+            const [x, y] = proj(loc.ll[0], loc.ll[1]);
             return (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => handlePick(p)}
-                style={{ left: `${p.pos[0]}%`, top: `${p.pos[1]}%` }}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-lg px-1.5 py-0.5 text-[9.5px] font-black transition-all flex flex-col items-center gap-0.5 border ${
-                  isSelected
-                    ? 'bg-[#ffd700] text-black border-white shadow-[0_0_18px_#ffd700] scale-110 z-20 ring-2 ring-[#ff9933]'
-                    : 'bg-[#0c1812] text-[#f5eedb] border-[#ffd700]/50 hover:border-[#ffd700] hover:scale-105 z-10'
-                }`}
-                title={`${p.name} • ${p.state}`}
+                style={{ left: `${(x / 500) * 100}%`, top: `${(y / 580) * 100}%` }}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 ${isSelected ? 'z-30' : 'z-10'}`}
+                title={`${p.name} • ${loc.place}`}
                 aria-label={`Select ${p.name}`}
               >
-                <div
-                  className="w-3.5 h-3.5 rounded-full border border-black/50 flex items-center justify-center text-[7.5px]"
+                <span
+                  className={`block w-5 h-5 rounded-full border-2 transition-all ${
+                    isSelected ? 'border-white scale-125 shadow-[0_0_16px_#ffd700] ring-2 ring-[#ffd700]' : 'border-[#ffd700] hover:scale-110'
+                  }`}
                   style={{ backgroundColor: p.col }}
+                />
+                <span
+                  className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap rounded px-1 py-px text-[9px] font-black leading-tight border ${
+                    loc.side === 'r' ? 'left-full ml-1' : 'right-full mr-1'
+                  } ${isSelected ? 'bg-[#ffd700] text-black border-white' : 'bg-[#0c1812]/95 text-[#f5eedb] border-[#ffd700]/50'}`}
                 >
-                  ●
-                </div>
-                <span className="leading-tight">{p.name.split(' ')[0]}</span>
+                  {p.name.split(' ')[0]}
+                </span>
               </button>
             );
           })}
@@ -278,7 +225,7 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
           />
 
           <div className="text-[10px] font-bold text-[#ffd700] tracking-wider uppercase">
-            {selectedPolitician.state}
+            {selectedPolitician.state} • {LEADER_LOC[selectedPolitician.id].place}
           </div>
           <h2 className="text-xl font-bold text-white font-serif leading-tight">
             {selectedPolitician.name}
