@@ -23,6 +23,17 @@
 - 🧠 **Explainable AI Decision Tree:** Live real-time utility scores and decision trees showing why the AI makes specific combat choices ("Why Did You Do That?").
 - 🎮 **Virtual On-Screen Gamepad:** Full mobile and touchscreen support alongside desktop keyboard controls.
 - 📜 **Rulebook Modal (Rule 267):** Authentic parliamentary rules, victory conditions, and mechanics.
+
+### ✨ Latest Update: Major UI Overhaul
+
+- 🎨 **All emojis replaced with Lucide React SVG icons** — crisp, scalable, and professional across every device
+- 🪟 **Glass-morphism effects** — frosted-glass panels with `backdrop-blur` for modals, cards, and controls
+- 🏛️ **Parliament background pattern** — radial gradient atmosphere on the character select screen
+- ✨ **Golden shimmer CTA button** — animated gradient shimmer on the "Enter the Lok Sabha Chamber" button
+- 🏆 **Victory confetti & crown animation** — gold confetti particles rain down with floating crown icon on win
+- 💫 **Pulse-gold selected pins** — animated golden ring pulse on the selected politician's map pin
+- 🎯 **Gradient utility bars** — decision tree EV bars now use smooth gradients instead of flat colors
+- 🖱️ **Hover micro-interactions** — scale-up transitions on all buttons and controls
 - 👥 **1P vs AI & 2-Player Local PvP:** Play solo against the self-explaining AI or duel a friend on the same device.
 
 ---
