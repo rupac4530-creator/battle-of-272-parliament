@@ -26,32 +26,47 @@
 
 ---
 
-## 📸 Game Screenshots & Visual Tour
+## 🎬 Gameplay Trailer & Visual Tour
 
-### 1. 18th Lok Sabha Boot Protocol (Intro Loading Sequence)
-![18th Lok Sabha Boot Protocol](screenshots/01-boot-protocol.png)
-> **What it shows:** The satirical startup boot sequence that initialises the game. Features a real-time tally counting up to 272 majority seats, a spinning Ashoka Chakra emblem, animated Speaker Om Birla gavel, and 7 rotating humorous parliamentary updates (like muting opposition microphones and boiling Adrak Chai).
+### ⚡ Live 60 FPS Gameplay Demo (Animated)
+![Parliament House Gameplay Demo](media_clips/parliament-gameplay.gif)
+
+> 🎥 **Download Ready-to-Upload 1080p Video Clips (MP4):**
+> * 🎬 **[Full Gameplay Trailer (1080p MP4)](media_clips/video_clips/02_parliament_gameplay_trailer.mp4)** — High-action combat, specials, Chai drops, and podium capture.
+> * 🚀 **[Boot Protocol Intro Sequence (1080p MP4)](media_clips/video_clips/01_boot_protocol_intro.mp4)** — Satirical startup sequence with cartoon leaders and seat counter.
+
+---
+
+### 1. 18th Lok Sabha Boot Protocol (Cartoon Leaders Backdrop)
+![18th Lok Sabha Boot Protocol](media_clips/image_clips/01_boot_protocol_cartoon_leaders.png)
+> **What it shows:** The satirical startup boot sequence with all-star cartoon Indian leaders in front of the Parliament House. Features a real-time tally counting up to 272 majority seats, an animated spinning Ashoka Chakra, Speaker Om Birla gavel slam, and 7 rotating humorous parliamentary updates.
 
 ---
 
 ### 2. Interactive Map of India (Neta Selection Screen)
-![Interactive Map of India](screenshots/02-india-map-selection.png)
-> **What it shows:** The geographic character selection screen with an accurate SVG projection of India. Netas sit pinned on their home constituencies (Yogi Adityanath in Gorakhpur, UP). Features an interactive dossier card, instant voice preview ("Play Voice"), and the astronaut Modi background with glass-morphic menus.
+![Interactive Map of India](media_clips/image_clips/02_india_map_character_select.png)
+> **What it shows:** The geographic character selection screen with an accurate SVG projection of India. Netas sit pinned on their home constituencies with live voice previews ("Play Voice"), dossier cards, and the astronaut Modi background with glass-morphic menus.
 
 ---
 
 ### 3. The Lok Sabha Chamber Arena & Explainable AI (XAI)
-![Lok Sabha Chamber Arena](screenshots/03-battle-arena-xai.png)
+![Lok Sabha Chamber Arena](media_clips/image_clips/03_lok_sabha_3d_battle_arena.png)
 > **What it shows:** Active combat in the well of the House between Narendra Modi and Yogi Adityanath. Highlights:
 > - **Central 272 Podium:** Stand on the podium to capture seats for an instant political victory.
-> - **Live Decision Tree (Right Sidebar):** Displays the bot's mathematical Expected Value (EV) calculation across 8 choices (showing AI Yogi executing `Special (+48)`).
+> - **Live Decision Tree (Right Sidebar):** Displays the bot's mathematical Expected Value (EV) calculation across 8 choices in real-time.
 > - **Virtual Gamepad (Bottom):** Responsive joystick and action buttons enabling full mouse and touch control.
 
 ---
 
-### 4. Parliament Canteen Power-Ups & Dynamic Combat
-![Parliament Canteen Drops & Combat](screenshots/04-canteen-drop-gameplay.png)
-> **What it shows:** High-stakes parliamentary debate mechanics with Yogi executing his *"BULLDOZER ON!"* signature move, a Parliament Canteen *Kullad Chai* drop falling near the podium to heal HP, the live Rule Coach banner at the top, and real-time telemetry streaming into Speaker Om Birla's log.
+### 4. Explainable AI Decision Inspector ("Why Did You Do That?")
+![Explainable AI Inspector](media_clips/image_clips/04_explainable_ai_decision_inspector.png)
+> **What it shows:** Full explainability dialog dissecting the CPU's combat choices with mathematical utility hierarchies, active telemetry snapshot (distance, HP, super meter, seats), and interactive counterfactual reasoning questions (*"Why didn't you do something else?"*).
+
+---
+
+### 5. Parliament Rules of Engagement (Rule 267)
+![Rule 267 Modal](media_clips/image_clips/05_rule_267_parliament_rulebook.png)
+> **What it shows:** The illustrated parliamentary rulebook outlining the dual win conditions (0 HP Knockout vs. 272 Majority Seats), signature move mechanics, Parliament Canteen drops, and pickup line rules.
 
 ---
 
