@@ -41,7 +41,6 @@ import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
 import { IntroLoadingScreen } from './components/IntroLoadingScreen';
-import { OrientationLockPrompt } from './components/OrientationLockPrompt';
 import {
   Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
   Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
@@ -75,23 +74,37 @@ export default function App() {
   const [treeUtilityScores, setTreeUtilityScores] = useState<Record<string, number>>({});
 
   // Mobile / Device Orientation & Adaptive Layout State
-  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerHeight > window.innerWidth && (window.innerWidth <= 850 || window.innerHeight <= 950);
+  const [viewportDims, setViewportDims] = useState(() => {
+    if (typeof window === 'undefined') return { w: 1024, h: 768 };
+    return { w: window.innerWidth, h: window.innerHeight };
   });
-  const [isForceRotated, setIsForceRotated] = useState<boolean>(false);
-  const [isOrientationPromptDismissed, setIsOrientationPromptDismissed] = useState<boolean>(false);
+
+  // Automatically default to rotated landscape format on phone/mobile held vertically!
+  const [isForceRotated, setIsForceRotated] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const isPort = window.innerHeight > window.innerWidth && (window.innerWidth <= 850 || window.innerHeight <= 950);
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    return isPort && isMobile;
+  });
+
   const [isMobileTelemetryOpen, setIsMobileTelemetryOpen] = useState<boolean>(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(true);
 
-  // Monitor device orientation & window resize
+  // Monitor device orientation & window resize dynamically
   useEffect(() => {
     const handleOrientation = () => {
-      const isPort = window.innerHeight > window.innerWidth && (window.innerWidth <= 850 || window.innerHeight <= 950);
-      setIsPortrait(isPort);
-      // Automatically disable force-rotate if user physically turned phone to landscape
-      if (!isPort) {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setViewportDims({ w, h });
+      const isPort = h > w && (w <= 850 || h <= 950);
+      const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      // If user physically turned phone to landscape (w > h), native landscape is active!
+      if (w > h) {
         setIsForceRotated(false);
+      } else if (isMobile && isPort) {
+        // If on mobile phone in portrait, automatically ensure rotated format!
+        setIsForceRotated(true);
       }
     };
     window.addEventListener('resize', handleOrientation);
@@ -101,20 +114,6 @@ export default function App() {
       window.removeEventListener('orientationchange', handleOrientation);
     };
   }, []);
-
-  const handleRequestFullscreenAndRotate = async () => {
-    try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      }
-      if (window.screen?.orientation && 'lock' in window.screen.orientation) {
-        await (window.screen.orientation as any).lock('landscape').catch(() => {});
-      }
-    } catch {
-      // If browser blocks fullscreen or orientation lock, fallback to CSS rotation
-      setIsForceRotated(true);
-    }
-  };
 
   // Mutable Game Simulation Refs (outside React reconciliation)
   const combatantsRef = useRef<{ p1: Combatant; p2: Combatant } | null>(null);
@@ -1070,21 +1069,30 @@ export default function App() {
     setIsPaused(next);
   };
 
+  const containerStyle: React.CSSProperties = isForceRotated
+    ? {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        width: `${viewportDims.h}px`,
+        height: `${viewportDims.w}px`,
+        transform: 'translate(-50%, -50%) rotate(90deg)',
+        transformOrigin: 'center center',
+        overflow: 'hidden',
+        zIndex: 50
+      }
+    : {
+        width: '100vw',
+        height: '100dvh'
+      };
+
   return (
     <div
-      className={`flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-[#070d0a] text-[#f5eedb] select-none font-sans relative ${
-        isForceRotated ? 'force-landscape-container' : ''
+      style={containerStyle}
+      className={`flex flex-col lg:flex-row overflow-hidden bg-[#070d0a] text-[#f5eedb] select-none font-sans relative ${
+        isForceRotated ? 'force-landscape-container' : 'h-[100dvh] w-screen'
       }`}
     >
-      {/* Mobile Orientation Lock Prompt */}
-      <OrientationLockPrompt
-        isPortrait={isPortrait && !isOrientationPromptDismissed}
-        isForceRotated={isForceRotated}
-        onToggleForceRotate={() => setIsForceRotated(prev => !prev)}
-        onRequestFullscreen={handleRequestFullscreenAndRotate}
-        onDismiss={() => setIsOrientationPromptDismissed(true)}
-      />
-
       {/* Humorous Parliamentary Boot / Loading Intro Screen */}
       {isLoadingIntro && (
         <IntroLoadingScreen onFinish={() => setIsLoadingIntro(false)} />
@@ -1215,6 +1223,8 @@ export default function App() {
             onToggle2Player={setIs2PlayerMode}
             onOpenRulebook={() => setIsRulebookOpen(true)}
             onReplayIntro={() => setIsLoadingIntro(true)}
+            isForceRotated={isForceRotated}
+            onToggleRotate={() => setIsForceRotated(p => !p)}
           />
         )}
 

@@ -6,7 +6,7 @@ import { speakPoliticianVoice } from '../game/audio';
 import { INDIA_PATH, ISLANDS, CITIES, REGIONS, LEADER_LOC, proj } from '../game/indiaGeo';
 import {
   Landmark, Gamepad2, Users, BookOpen, Zap, Flame,
-  Mic, Volume2, Swords, Github, MapPin, Play, Sparkles
+  Mic, Volume2, Swords, Github, MapPin, Play, Sparkles, RotateCw
 } from 'lucide-react';
 
 interface IndiaMapSelectProps {
@@ -17,6 +17,8 @@ interface IndiaMapSelectProps {
   onToggle2Player: (is2P: boolean) => void;
   onOpenRulebook: () => void;
   onReplayIntro?: () => void;
+  isForceRotated?: boolean;
+  onToggleRotate?: () => void;
 }
 
 export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
@@ -26,7 +28,9 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   is2PlayerMode,
   onToggle2Player,
   onOpenRulebook,
-  onReplayIntro
+  onReplayIntro,
+  isForceRotated = false,
+  onToggleRotate
 }) => {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [tick, setTick] = useState(0);
@@ -143,13 +147,29 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
             >
               <Github size={12} /> GitHub
             </a>
+            {onToggleRotate && (
+              <button
+                type="button"
+                onClick={onToggleRotate}
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold glass text-[#ff9933] border border-[#ff9933]/50 hover:bg-[#ff9933]/20 hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+                title="Toggle 90° Landscape View"
+              >
+                <RotateCw size={12} /> {isForceRotated ? 'Landscape 90°' : 'Rotate 90°'}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Main Map & Dossier Workspace: Responsive Side-by-Side in Landscape & Large Screens */}
         <div className="flex flex-col sm:flex-row landscape:flex-row items-center justify-center gap-3 sm:gap-4 lg:gap-6 w-full max-w-5xl my-auto py-1 sm:py-2 min-h-0">
-          {/* Full Cartographic Map of India */}
-          <div className="relative w-[240px] xs:w-[280px] sm:w-[340px] md:w-[380px] lg:w-[410px] max-h-[52vh] sm:max-h-[62vh] aspect-[500/580] glass-dark border-2 border-[#1e3327] rounded-2xl overflow-hidden shadow-2xl shrink-0">
+          {/* Full Cartographic Map of India (Strict Proportional 500:580 Aspect Ratio) */}
+          <div
+            style={{
+              height: 'clamp(170px, 48vh, 460px)',
+              width: 'calc(clamp(170px, 48vh, 460px) * (500 / 580))'
+            }}
+            className="relative aspect-[500/580] glass-dark border-2 border-[#1e3327] rounded-2xl overflow-hidden shadow-2xl shrink-0"
+          >
             <svg viewBox="0 0 500 580" className="w-full h-full block" role="img" aria-label="Complete Map of India">
               <defs>
                 <pattern id="fullGrid" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -247,7 +267,10 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
           </div>
 
           {/* Selected Leader Dossier Card with Real Voice Trigger */}
-          <div className="w-full max-w-[370px] max-h-[52vh] sm:max-h-[62vh] overflow-y-auto glass border-2 border-[#1e3327] rounded-2xl p-3 sm:p-5 text-left shadow-2xl relative hover:border-[#ffd700]/30 transition-colors duration-500">
+          <div
+            style={{ height: 'clamp(170px, 48vh, 460px)' }}
+            className="w-full max-w-[340px] sm:max-w-[370px] overflow-y-auto glass border-2 border-[#1e3327] rounded-2xl p-2.5 sm:p-4 text-left shadow-2xl relative hover:border-[#ffd700]/30 transition-colors duration-500"
+          >
             <canvas
               ref={previewCanvasRef}
               width={80}
