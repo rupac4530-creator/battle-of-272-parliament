@@ -28,12 +28,13 @@
 
 ## 🎬 Gameplay Trailer & Visual Tour
 
-### ⚡ Live 60 FPS Gameplay Demo (Animated)
-![Parliament House Gameplay Demo](media_clips/parliament-gameplay.gif)
+### ⚡ Official Gameplay Edit (Watch Full Video)
+![Parliament House Gameplay Demo](media_clips/battle-of-272-gameplay-edit.gif)
 
-> 🎥 **Download Ready-to-Upload 1080p Video Clips (MP4):**
-> * 🎬 **[Full Gameplay Trailer (1080p MP4)](media_clips/video_clips/02_parliament_gameplay_trailer.mp4)** — High-action combat, specials, Chai drops, and podium capture.
+> 🎥 **Download & Watch Video Clips (1080p MP4):**
+> * 🎬 **[Download / Watch Gameplay Edit (1080p MP4)](media_clips/battle-of-272-gameplay-edit.mp4)** — Edited highlights of 18th Lok Sabha combat, specials, and AI showdown.
 > * 🚀 **[Boot Protocol Intro Sequence (1080p MP4)](media_clips/video_clips/01_boot_protocol_intro.mp4)** — Satirical startup sequence with cartoon leaders and seat counter.
+> * 🥊 **[Full Raw Gameplay Trailer (1080p MP4)](media_clips/video_clips/02_parliament_gameplay_trailer.mp4)** — High-action combat, specials, Chai drops, and podium capture.
 
 ---
 
