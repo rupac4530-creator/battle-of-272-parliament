@@ -147,17 +147,25 @@ export const IntroLoadingScreen: React.FC<IntroLoadingScreenProps> = ({ onFinish
     return () => clearInterval(interval);
   }, []);
 
+  const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+  const loadingBg = `${base}/loading-bg.jpg`;
+
   return (
     <div
       className={`fixed inset-0 z-[100] flex flex-col items-center justify-between p-4 sm:p-8 bg-[#030705] text-[#f5eedb] select-none transition-opacity duration-500 overflow-hidden ${
         isFadingOut ? 'opacity-0 scale-105 pointer-events-none' : 'opacity-100 scale-100'
       }`}
     >
-      {/* Background Indian Tricolor Atmosphere & Grid */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-[#ff9933]/15 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-[#138808]/15 rounded-full blur-3xl" />
-        <div className="absolute inset-0 parliament-bg opacity-30" />
+      {/* Cartoon Leaders Parliament Background */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <img
+          src={loadingBg}
+          alt="Parliament Leaders Loading Background"
+          className="w-full h-full object-cover object-center scale-105 filter brightness-75 contrast-105"
+        />
+        {/* Dark gradients & atmospheric vignette for crystal-clear readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#030705] via-[#030705]/60 to-[#030705]/80" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(3,7,5,0.85)_95%)]" />
       </div>
 
       {/* Top Header Badge */}

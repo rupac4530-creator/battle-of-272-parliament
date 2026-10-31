@@ -58,6 +58,7 @@
 ### ✨ Latest Update: Cinematic Atmosphere & Parliamentary Boot Sequence
 
 - 🎬 **Hilarious "18th Lok Sabha Boot Protocol" Intro Animation:**
+  - **Cartoon Parliament Leaders Backdrop:** The boot sequence features an all-star cartoon artwork backdrop of Indian political leaders in front of the Parliament of India with cinematic dark vignettes
   - Dynamic 272-majority-seat counter counting up from 0 to 272 with victory audio chime
   - Animated spinning Ashoka Chakra emblem, slamming Speaker Om Birla gavel, and floating parliament items (♨️ bubbling Adrak Chai, 56-inch armor, love particles)
   - 7 hilarious rotating parliamentary status quotes (muting microphones, Amit Shah's resort helicopters, Kejriwal's AQI 999 muffler, Rahul's wink cannons)
