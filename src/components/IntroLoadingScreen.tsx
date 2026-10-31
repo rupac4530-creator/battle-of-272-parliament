@@ -189,43 +189,44 @@ export const IntroLoadingScreen: React.FC<IntroLoadingScreenProps> = ({ onFinish
       </div>
 
       {/* Main Center Animation Stage */}
-      <div className="relative z-10 flex flex-col items-center justify-center my-auto w-full max-w-xl text-center px-2">
+      <div className="relative z-10 flex flex-col items-center justify-center my-auto w-full max-w-xl text-center px-2 py-1">
         {/* Animated Ashoka Chakra & Gavel Emblem */}
-        <div className="relative mb-6 flex items-center justify-center">
+        <div className="relative mb-2 sm:mb-5 flex items-center justify-center">
           {/* Outer glowing ring */}
-          <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-2 border-dashed border-[#ffd700]/40 animate-spin-slow flex items-center justify-center" />
+          <div className="w-20 h-20 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-full border-2 border-dashed border-[#ffd700]/40 animate-spin-slow flex items-center justify-center" />
           
           {/* Inner pulse circle */}
-          <div className="absolute w-24 h-24 sm:w-28 sm:h-28 rounded-full glass border-2 border-[#ffd700] shadow-[0_0_30px_rgba(255,215,0,0.35)] flex items-center justify-center pulse-gold">
+          <div className="absolute w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full glass border-2 border-[#ffd700] shadow-[0_0_30px_rgba(255,215,0,0.35)] flex items-center justify-center pulse-gold">
             {/* Animated Gavel Icon */}
             <div className="animate-gavel text-[#ffd700]">
-              <Landmark size={42} className="text-[#ffd700]" />
+              <Landmark size={26} className="text-[#ffd700] sm:hidden" />
+              <Landmark size={40} className="text-[#ffd700] hidden sm:block" />
             </div>
           </div>
 
           {/* Floating Steam / Chai funny indicator */}
-          <div className="absolute -top-2 -right-2 px-2 py-0.5 glass-dark rounded-full border border-[#56d364]/50 text-[10px] font-bold text-[#56d364] flex items-center gap-1 animate-funny-bounce">
-            <Coffee size={11} className="text-[#56d364]" />
+          <div className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 px-1.5 sm:px-2 py-0.5 glass-dark rounded-full border border-[#56d364]/50 text-[9px] sm:text-[10px] font-bold text-[#56d364] flex items-center gap-1 animate-funny-bounce">
+            <Coffee size={10} className="text-[#56d364]" />
             <span className="animate-steam">♨️ Adrak Chai</span>
           </div>
 
           {/* Floating Flying Kiss indicator */}
-          <div className="absolute -bottom-2 -left-2 px-2 py-0.5 glass-dark rounded-full border border-[#f43f5e]/50 text-[10px] font-bold text-[#f43f5e] flex items-center gap-1 animate-heart-pulse">
-            <Sparkles size={11} />
+          <div className="absolute -bottom-1.5 -left-1.5 sm:-bottom-2 sm:-left-2 px-1.5 sm:px-2 py-0.5 glass-dark rounded-full border border-[#f43f5e]/50 text-[9px] sm:text-[10px] font-bold text-[#f43f5e] flex items-center gap-1 animate-heart-pulse">
+            <Sparkles size={10} />
             <span>56" Chest</span>
           </div>
         </div>
 
         {/* Dynamic Seat Counter */}
-        <div className="mb-4">
-          <div className="text-[11px] font-mono tracking-widest text-[#8ea396] uppercase mb-1">
+        <div className="mb-2 sm:mb-4">
+          <div className="text-[10px] sm:text-[11px] font-mono tracking-widest text-[#8ea396] uppercase mb-0.5">
             PARLIAMENT SEATS ACCUMULATED
           </div>
-          <div className="text-4xl sm:text-6xl font-black font-mono tracking-tight flex items-baseline justify-center gap-1.5">
+          <div className="text-3xl sm:text-5xl md:text-6xl font-black font-mono tracking-tight flex items-baseline justify-center gap-1.5">
             <span className="text-gradient-gold text-shadow">{seats}</span>
-            <span className="text-xl sm:text-2xl text-[#8ea396] font-normal">/ 272</span>
+            <span className="text-lg sm:text-2xl text-[#8ea396] font-normal">/ 272</span>
           </div>
-          <div className="text-xs font-bold mt-1 text-[#56d364] flex items-center justify-center gap-1.5">
+          <div className="text-[11px] sm:text-xs font-bold mt-0.5 text-[#56d364] flex items-center justify-center gap-1.5">
             {seats >= 272 ? (
               <span className="px-3 py-0.5 bg-[#138808]/30 border border-[#138808] text-[#56d364] rounded-full animate-bounce">
                 🎉 ABSOLUTE MAJORITY REACHED!
@@ -237,11 +238,11 @@ export const IntroLoadingScreen: React.FC<IntroLoadingScreenProps> = ({ onFinish
         </div>
 
         {/* Humorous Current Action Card */}
-        <div className="w-full glass border-2 border-[#1e3327] hover:border-[#ffd700]/40 rounded-2xl p-4 sm:p-5 shadow-2xl transition-all duration-300 relative overflow-hidden">
+        <div className="w-full glass border-2 border-[#1e3327] hover:border-[#ffd700]/40 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 shadow-2xl transition-all duration-300 relative overflow-hidden">
           {/* Top Step Pill */}
-          <div className="flex items-center justify-between mb-2 pb-2 border-b border-[#1e3327]">
+          <div className="flex items-center justify-between mb-1 sm:mb-2 pb-1 sm:pb-2 border-b border-[#1e3327]">
             <span
-              className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border flex items-center gap-1.5"
+              className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1"
               style={{
                 borderColor: `${step.color}60`,
                 backgroundColor: `${step.color}15`,
@@ -251,18 +252,18 @@ export const IntroLoadingScreen: React.FC<IntroLoadingScreenProps> = ({ onFinish
               {step.icon}
               {step.category}
             </span>
-            <span className="text-[10px] font-mono font-bold text-[#8ea396]">
+            <span className="text-[9px] sm:text-[10px] font-mono font-bold text-[#8ea396]">
               STEP {currentStepIndex + 1} OF {FUNNY_STEPS.length}
             </span>
           </div>
 
           {/* Funny Punchline Quote */}
-          <p className="text-base sm:text-lg font-bold text-white font-serif leading-snug min-h-[50px] flex items-center justify-center">
+          <p className="text-xs sm:text-base md:text-lg font-bold text-white font-serif leading-snug min-h-[36px] sm:min-h-[46px] flex items-center justify-center">
             "{step.quote}"
           </p>
 
           {/* Subtext description */}
-          <p className="text-[11.5px] text-[#8ea396] italic mt-1 min-h-[20px]">
+          <p className="text-[10px] sm:text-[11.5px] text-[#8ea396] italic mt-0.5 min-h-[16px] hidden xs:block">
             {step.subtext}
           </p>
         </div>

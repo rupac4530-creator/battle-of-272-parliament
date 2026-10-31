@@ -65,7 +65,7 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   const menuBg = `${base}/menu-bg.jpg`;
 
   return (
-    <div className="fixed inset-0 lg:absolute lg:inset-0 z-50 flex flex-col items-center justify-between p-3 sm:p-5 overflow-y-auto relative bg-[#040906]">
+    <div className="fixed inset-0 lg:absolute lg:inset-0 z-50 flex flex-col items-center justify-between p-2 sm:p-4 lg:p-5 overflow-y-auto relative bg-[#040906] safe-p-all">
       {/* Astronaut Modi Cinematic Background (First Page Only) */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <img
@@ -79,77 +79,77 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
       </div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center justify-between w-full h-full">
+      <div className="relative z-10 flex flex-col items-center justify-between w-full h-full min-h-0">
         {/* Title Header */}
-        <div className="text-center max-w-2xl my-1 shrink-0">
-          <div className="inline-flex items-center gap-2 px-4 py-1 glass border border-[#138808]/60 text-[#56d364] text-[11px] font-black uppercase tracking-wider rounded-full mb-2">
-            <Landmark size={13} className="text-[#ffd700]" />
+        <div className="text-center max-w-2xl my-0.5 sm:my-1 shrink-0">
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 glass border border-[#138808]/60 text-[#56d364] text-[10px] sm:text-[11px] font-black uppercase tracking-wider rounded-full mb-1">
+            <Landmark size={12} className="text-[#ffd700]" />
             संसद्-भवनम् • THE PARLIAMENT HOUSE
           </div>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-gradient-gold tracking-tight font-serif">
+          <h1 className="text-lg sm:text-2xl lg:text-3xl font-extrabold text-gradient-gold tracking-tight font-serif">
             CHOOSE YOUR NETA — MAP OF INDIA
           </h1>
-          <p className="text-[#8ea396] text-[11px] sm:text-xs mt-1">
+          <p className="text-[#8ea396] text-[10px] sm:text-xs mt-0.5 hidden xs:block">
             Tap a leader on their home turf. Pins sit at their real cities.
           </p>
 
           {/* Mode Selector */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2.5">
             <button
               type="button"
               onClick={() => onToggle2Player(false)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 ${
+              className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 ${
                 !is2PlayerMode
                   ? 'bg-[#58a6ff] text-black border-white shadow-lg shadow-[#58a6ff]/30'
                   : 'glass text-[#f5eedb] border-[#1e3327] hover:border-[#58a6ff]/50'
               }`}
             >
-              <Gamepad2 size={14} /> 1P vs Explainable AI
+              <Gamepad2 size={13} /> 1P vs Explainable AI
             </button>
             <button
               type="button"
               onClick={() => onToggle2Player(true)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 ${
+              className={`px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 ${
                 is2PlayerMode
                   ? 'bg-[#58a6ff] text-black border-white shadow-lg shadow-[#58a6ff]/30'
                   : 'glass text-[#f5eedb] border-[#1e3327] hover:border-[#58a6ff]/50'
               }`}
             >
-              <Users size={14} /> 2-Player Local PvP
+              <Users size={13} /> 2-Player Local PvP
             </button>
             <button
               type="button"
               onClick={onOpenRulebook}
-              className="px-3 py-1.5 rounded-full text-xs font-bold glass text-[#ffd700] border border-[#ffd700]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold glass text-[#ffd700] border border-[#ffd700]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
             >
-              <BookOpen size={13} /> Rule 267
+              <BookOpen size={12} /> Rule 267
             </button>
             {onReplayIntro && (
               <button
                 type="button"
                 onClick={onReplayIntro}
-                className="px-3 py-1.5 rounded-full text-xs font-bold glass text-[#ff9933] border border-[#ff9933]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold glass text-[#ff9933] border border-[#ff9933]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
                 title="Replay Loading Sequence"
               >
-                <Sparkles size={13} /> Boot Sequence
+                <Sparkles size={12} /> Boot Sequence
               </button>
             )}
             <a
               href="https://github.com/rupac4530-creator/battle-of-272-parliament"
               target="_blank"
               rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-full text-xs font-bold glass text-white border border-[#56d364]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold glass text-white border border-[#56d364]/40 hover:bg-[#284434] hover:scale-105 transition-all duration-200 flex items-center gap-1.5"
               title="GitHub Repository"
             >
-              <Github size={13} /> GitHub
+              <Github size={12} /> GitHub
             </a>
           </div>
         </div>
 
-        {/* Main Map & Dossier Workspace */}
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4 lg:gap-6 w-full max-w-5xl my-auto py-2">
+        {/* Main Map & Dossier Workspace: Responsive Side-by-Side in Landscape & Large Screens */}
+        <div className="flex flex-col sm:flex-row landscape:flex-row items-center justify-center gap-3 sm:gap-4 lg:gap-6 w-full max-w-5xl my-auto py-1 sm:py-2 min-h-0">
           {/* Full Cartographic Map of India */}
-          <div className="relative w-[340px] sm:w-[410px] aspect-[500/580] glass-dark border-2 border-[#1e3327] rounded-2xl overflow-hidden shadow-2xl shrink-0">
+          <div className="relative w-[240px] xs:w-[280px] sm:w-[340px] md:w-[380px] lg:w-[410px] max-h-[52vh] sm:max-h-[62vh] aspect-[500/580] glass-dark border-2 border-[#1e3327] rounded-2xl overflow-hidden shadow-2xl shrink-0">
             <svg viewBox="0 0 500 580" className="w-full h-full block" role="img" aria-label="Complete Map of India">
               <defs>
                 <pattern id="fullGrid" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -247,26 +247,26 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
           </div>
 
           {/* Selected Leader Dossier Card with Real Voice Trigger */}
-          <div className="w-full max-w-[370px] glass border-2 border-[#1e3327] rounded-2xl p-4 sm:p-5 text-left shadow-2xl relative hover:border-[#ffd700]/30 transition-colors duration-500">
+          <div className="w-full max-w-[370px] max-h-[52vh] sm:max-h-[62vh] overflow-y-auto glass border-2 border-[#1e3327] rounded-2xl p-3 sm:p-5 text-left shadow-2xl relative hover:border-[#ffd700]/30 transition-colors duration-500">
             <canvas
               ref={previewCanvasRef}
               width={80}
               height={110}
-              className="float-right ml-3 mb-2 rounded-xl border-2 border-[#ffd700] bg-[#14231a] shadow-md"
+              className="float-right ml-2 sm:ml-3 mb-1 sm:mb-2 w-16 h-22 sm:w-20 sm:h-28 rounded-xl border-2 border-[#ffd700] bg-[#14231a] shadow-md"
             />
 
-            <div className="text-[10px] font-bold text-[#ffd700] tracking-wider uppercase flex items-center gap-1">
+            <div className="text-[9.5px] sm:text-[10px] font-bold text-[#ffd700] tracking-wider uppercase flex items-center gap-1">
               <MapPin size={10} />
               {selectedPolitician.state} • {LEADER_LOC[selectedPolitician.id].place}
             </div>
-            <h2 className="text-xl font-bold text-white font-serif leading-tight tracking-tight">
+            <h2 className="text-lg sm:text-xl font-bold text-white font-serif leading-tight tracking-tight">
               {selectedPolitician.name}
             </h2>
-            <div className="text-xs text-[#56d364] font-semibold mb-2">
+            <div className="text-[11px] sm:text-xs text-[#56d364] font-semibold mb-1.5 sm:mb-2">
               {selectedPolitician.nameHi} • {selectedPolitician.title}
             </div>
 
-            <div className="space-y-1.5 text-xs text-[#8ea396] clear-both pt-2 border-t border-[#1e3327]">
+            <div className="space-y-1 sm:space-y-1.5 text-[11px] sm:text-xs text-[#8ea396] clear-both pt-1.5 sm:pt-2 border-t border-[#1e3327]">
               <p>
                 <strong className="text-white">Archetype:</strong> {selectedPolitician.role}
               </p>
@@ -274,30 +274,30 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
                 <strong className="text-white">Profile:</strong> {selectedPolitician.description}
               </p>
 
-              <div className="p-2.5 bg-[#122218]/80 rounded-lg border border-[#1e3327] mt-1.5 space-y-1">
-                <div className="text-[#ffd700] font-bold text-[11px] flex items-center gap-1.5">
-                  <Zap size={12} className="text-[#ffd700]" /> Special [K]: <span className="text-white font-normal">{selectedPolitician.specialName}</span>
+              <div className="p-2 sm:p-2.5 bg-[#122218]/80 rounded-lg border border-[#1e3327] mt-1 space-y-0.5 sm:space-y-1">
+                <div className="text-[#ffd700] font-bold text-[10px] sm:text-[11px] flex items-center gap-1.5">
+                  <Zap size={11} className="text-[#ffd700]" /> Special [K]: <span className="text-white font-normal">{selectedPolitician.specialName}</span>
                 </div>
-                <div className="text-[#ff9933] font-bold text-[11px] flex items-center gap-1.5">
-                  <Flame size={12} className="text-[#ff9933]" /> Meme Super [Q]: <span className="text-white font-normal">{selectedPolitician.superName}</span>
+                <div className="text-[#ff9933] font-bold text-[10px] sm:text-[11px] flex items-center gap-1.5">
+                  <Flame size={11} className="text-[#ff9933]" /> Meme Super [Q]: <span className="text-white font-normal">{selectedPolitician.superName}</span>
                 </div>
               </div>
 
               {/* Authentic Meme Voice Player Card */}
-              <div className="p-2.5 glass-dark rounded-xl border border-[#ffd700]/40 mt-2">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-black text-[#ffd700] uppercase tracking-wider flex items-center gap-1.5">
-                    <Mic size={11} className="text-[#ffd700]" /> REAL-LIFE MEME VOICE
+              <div className="p-2 sm:p-2.5 glass-dark rounded-xl border border-[#ffd700]/40 mt-1.5 sm:mt-2">
+                <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                  <span className="text-[9.5px] sm:text-[10px] font-black text-[#ffd700] uppercase tracking-wider flex items-center gap-1">
+                    <Mic size={10} className="text-[#ffd700]" /> REAL-LIFE MEME VOICE
                   </span>
                   <button
                     type="button"
                     onClick={handlePlayVoiceOnly}
-                    className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#ffd700] text-black hover:bg-[#ffe24a] active:scale-95 transition-all shadow flex items-center gap-1"
+                    className="px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px] font-bold bg-[#ffd700] text-black hover:bg-[#ffe24a] active:scale-95 transition-all shadow flex items-center gap-1"
                   >
-                    <Volume2 size={11} /> Play Voice
+                    <Volume2 size={10} /> Play Voice
                   </button>
                 </div>
-                <p className="text-[11px] text-[#f5eedb] italic font-serif leading-snug">
+                <p className="text-[10.5px] sm:text-[11px] text-[#f5eedb] italic font-serif leading-snug">
                   "{selectedPolitician.memeDialogue}"
                 </p>
               </div>
@@ -306,17 +306,17 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
         </div>
 
         {/* Start Button CTA */}
-        <div className="w-full max-w-md my-1 text-center shrink-0">
+        <div className="w-full max-w-md my-0.5 sm:my-1 text-center shrink-0">
           <button
             type="button"
             data-start="true"
             onClick={onStartGame}
-            className="w-full py-3.5 px-6 rounded-xl text-sm sm:text-base font-extrabold text-white bg-gradient-to-r from-[#ff9933] via-[#e65100] to-[#b71c1c] border-2 border-[#ffd700] shadow-[0_4px_30px_rgba(255,153,51,0.4)] hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2.5 btn-shimmer"
+            className="w-full py-2.5 sm:py-3.5 px-4 sm:px-6 rounded-xl text-xs sm:text-base font-extrabold text-white bg-gradient-to-r from-[#ff9933] via-[#e65100] to-[#b71c1c] border-2 border-[#ffd700] shadow-[0_4px_30px_rgba(255,153,51,0.4)] hover:brightness-110 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 btn-shimmer"
           >
             <span className="tracking-wide">ENTER THE LOK SABHA CHAMBER</span>
-            <Swords size={20} />
+            <Swords size={18} />
           </button>
-          <div className="text-[10.5px] text-[#8ea396] mt-1.5">
+          <div className="text-[9.5px] sm:text-[10.5px] text-[#8ea396] mt-1">
             Press <kbd className="px-1.5 py-0.5 glass border border-[#2d4737] rounded text-white font-mono">Enter</kbd> or{' '}
             <kbd className="px-1.5 py-0.5 glass border border-[#2d4737] rounded text-white font-mono">Space</kbd> to Launch Session
           </div>

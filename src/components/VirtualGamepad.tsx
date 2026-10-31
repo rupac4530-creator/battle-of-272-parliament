@@ -10,6 +10,7 @@ interface VirtualGamepadProps {
   variant: 'split' | 'left' | 'right';
   isVisible: boolean;
   isSuperReady: boolean;
+  isForceRotated?: boolean;
   onMove: (dx: number, dy: number) => void;
   onHold: (k: PadHold, on: boolean) => void;
   onAction: (a: PadAction) => void;
@@ -49,6 +50,7 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
   variant,
   isVisible,
   isSuperReady,
+  isForceRotated = false,
   onMove,
   onHold,
   onAction
@@ -56,10 +58,12 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
   const baseRef = useRef<HTMLDivElement | null>(null);
   const knobRef = useRef<HTMLDivElement | null>(null);
   const pidRef = useRef<number | null>(null);
-  const compact = variant !== 'split';
-  const stick = compact ? 92 : 124;
-  const big = compact ? 50 : 70;
-  const small = compact ? 40 : 54;
+
+  const isMobileScreen = typeof window !== 'undefined' && (window.innerHeight <= 520 || window.innerWidth <= 768);
+  const compact = variant !== 'split' || isMobileScreen;
+  const stick = compact ? (isMobileScreen ? 88 : 96) : 124;
+  const big = compact ? (isMobileScreen ? 48 : 52) : 68;
+  const small = compact ? (isMobileScreen ? 38 : 42) : 52;
   const maxR = stick / 2 - 14;
   const iconSmall = Math.max(14, small * 0.34);
   const iconBig = Math.max(16, big * 0.34);
@@ -71,6 +75,15 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
     const r = baseRef.current.getBoundingClientRect();
     let dx = cx - (r.left + r.width / 2);
     let dy = cy - (r.top + r.height / 2);
+
+    // If forced 90-degree CSS rotation is active, rotate pointer delta
+    if (isForceRotated) {
+      const rotDx = dy;
+      const rotDy = -dx;
+      dx = rotDx;
+      dy = rotDy;
+    }
+
     const d = Math.hypot(dx, dy);
     if (d > maxR) { dx = (dx / d) * maxR; dy = (dy / d) * maxR; }
     knobRef.current.style.transform = `translate(${dx}px, ${dy}px)`;
@@ -134,13 +147,20 @@ export const VirtualGamepad: React.FC<VirtualGamepadProps> = ({
 
   const layout =
     variant === 'split'
-      ? 'justify-between left-3 right-3'
+      ? 'justify-between left-2 right-2 sm:left-4 sm:right-4'
       : variant === 'left'
-      ? 'justify-start gap-2 left-2'
-      : 'justify-start gap-2 right-2 flex-row-reverse';
+      ? 'justify-start gap-2 left-2 sm:left-4'
+      : 'justify-start gap-2 right-2 sm:right-4 flex-row-reverse';
 
   return (
-    <div className={`absolute bottom-3 flex items-end pointer-events-none z-30 select-none ${layout}`}>
+    <div
+      style={{
+        paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom, 6px))',
+        paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 8px))',
+        paddingRight: 'max(0.5rem, env(safe-area-inset-right, 8px))'
+      }}
+      className={`absolute bottom-1 sm:bottom-3 flex items-end pointer-events-none z-30 select-none ${layout}`}
+    >
       {joystick}
       {buttons}
     </div>

@@ -41,10 +41,12 @@ import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
 import { IntroLoadingScreen } from './components/IntroLoadingScreen';
+import { OrientationLockPrompt } from './components/OrientationLockPrompt';
 import {
   Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
   Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
-  Briefcase, Scroll, Play, Pause, MapIcon, Github, X
+  Briefcase, Scroll, Play, Pause, MapIcon, Github, X,
+  RotateCw, Maximize2, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 
 const TAU = Math.PI * 2;
@@ -71,6 +73,48 @@ export default function App() {
   const [isSuperReadyP1, setIsSuperReadyP1] = useState(false);
   const [activeDecisionTreeAction, setActiveDecisionTreeAction] = useState<string>('Strike');
   const [treeUtilityScores, setTreeUtilityScores] = useState<Record<string, number>>({});
+
+  // Mobile / Device Orientation & Adaptive Layout State
+  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerHeight > window.innerWidth && (window.innerWidth <= 850 || window.innerHeight <= 950);
+  });
+  const [isForceRotated, setIsForceRotated] = useState<boolean>(false);
+  const [isOrientationPromptDismissed, setIsOrientationPromptDismissed] = useState<boolean>(false);
+  const [isMobileTelemetryOpen, setIsMobileTelemetryOpen] = useState<boolean>(false);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(true);
+
+  // Monitor device orientation & window resize
+  useEffect(() => {
+    const handleOrientation = () => {
+      const isPort = window.innerHeight > window.innerWidth && (window.innerWidth <= 850 || window.innerHeight <= 950);
+      setIsPortrait(isPort);
+      // Automatically disable force-rotate if user physically turned phone to landscape
+      if (!isPort) {
+        setIsForceRotated(false);
+      }
+    };
+    window.addEventListener('resize', handleOrientation);
+    window.addEventListener('orientationchange', handleOrientation);
+    return () => {
+      window.removeEventListener('resize', handleOrientation);
+      window.removeEventListener('orientationchange', handleOrientation);
+    };
+  }, []);
+
+  const handleRequestFullscreenAndRotate = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+      if (window.screen?.orientation && 'lock' in window.screen.orientation) {
+        await (window.screen.orientation as any).lock('landscape').catch(() => {});
+      }
+    } catch {
+      // If browser blocks fullscreen or orientation lock, fallback to CSS rotation
+      setIsForceRotated(true);
+    }
+  };
 
   // Mutable Game Simulation Refs (outside React reconciliation)
   const combatantsRef = useRef<{ p1: Combatant; p2: Combatant } | null>(null);
@@ -1027,19 +1071,72 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-[#070d0a] text-[#f5eedb] select-none font-sans">
+    <div
+      className={`flex flex-col lg:flex-row h-screen w-screen overflow-hidden bg-[#070d0a] text-[#f5eedb] select-none font-sans relative ${
+        isForceRotated ? 'force-landscape-container' : ''
+      }`}
+    >
+      {/* Mobile Orientation Lock Prompt */}
+      <OrientationLockPrompt
+        isPortrait={isPortrait && !isOrientationPromptDismissed}
+        isForceRotated={isForceRotated}
+        onToggleForceRotate={() => setIsForceRotated(prev => !prev)}
+        onRequestFullscreen={handleRequestFullscreenAndRotate}
+        onDismiss={() => setIsOrientationPromptDismissed(true)}
+      />
+
       {/* Humorous Parliamentary Boot / Loading Intro Screen */}
       {isLoadingIntro && (
         <IntroLoadingScreen onFinish={() => setIsLoadingIntro(false)} />
       )}
-      {/* Left Stage Viewport (68%) */}
-      <div className="relative flex-1 lg:flex-[68_1_0] flex items-center justify-center bg-[#030705] overflow-hidden min-w-0">
+      {/* Left Stage Viewport */}
+      <div className="relative flex-1 flex items-center justify-center bg-[#030705] overflow-hidden min-w-0 h-full w-full">
         <canvas
           ref={canvasRef}
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
           className="w-full h-full object-contain max-h-screen block"
         />
+
+        {/* Mobile & Tablet Telemetry Drawer Toggle Button */}
+        {gameState === 'play' && (
+          <button
+            type="button"
+            onClick={() => setIsMobileTelemetryOpen(true)}
+            className="absolute top-2 left-2 z-40 px-3 py-1.5 rounded-full glass border border-[#ffd700] text-[#ffd700] text-xs font-bold shadow-xl flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all lg:hidden"
+            aria-label="Open AI Telemetry Console"
+          >
+            <Brain size={14} className="text-[#56d364]" />
+            <span>AI Telemetry</span>
+            <span className="w-2 h-2 rounded-full bg-[#56d364] animate-pulse" />
+          </button>
+        )}
+
+        {/* Desktop Theater View Toggle Button */}
+        {gameState === 'play' && (
+          <button
+            type="button"
+            onClick={() => setIsDesktopSidebarOpen(prev => !prev)}
+            title={isDesktopSidebarOpen ? 'Enter Theater Mode (Hide Sidebar)' : 'Show Speaker AI Sidebar'}
+            className="absolute top-2 left-2 z-40 px-3 py-1.5 rounded-full glass border border-[#1e3327] hover:border-[#ffd700]/70 text-[#8ea396] hover:text-white text-xs font-bold shadow-xl hidden lg:flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all"
+          >
+            {isDesktopSidebarOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+            <span>{isDesktopSidebarOpen ? 'Theater View' : 'Speaker AI'}</span>
+          </button>
+        )}
+
+        {/* Quick Orientation / Landscape Rotation Toggle Button */}
+        {gameState === 'play' && (
+          <button
+            type="button"
+            onClick={() => setIsForceRotated(prev => !prev)}
+            title="Toggle 90° Landscape Rotation"
+            className="absolute top-2 right-14 z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ff9933] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
+            aria-label="Rotate View"
+          >
+            <RotateCw size={17} />
+          </button>
+        )}
 
         {/* Contextual Rule Coach Banner */}
         {coachTip && isCoachOn && gameState === 'play' && (
@@ -1066,6 +1163,7 @@ export default function App() {
               variant={is2PlayerMode ? 'left' : 'split'}
               isVisible={isGamepadVisible}
               isSuperReady={isSuperReadyP1}
+              isForceRotated={isForceRotated}
               onMove={(dx, dy) => { padRef.current.p1.dx = dx; padRef.current.p1.dy = dy; }}
               onHold={(k, on) => { padRef.current.p1[k] = on; }}
               onAction={a => handleVirtualAction(1, a)}
@@ -1076,6 +1174,7 @@ export default function App() {
                 variant="right"
                 isVisible={isGamepadVisible}
                 isSuperReady={isSuperReadyP2}
+                isForceRotated={isForceRotated}
                 onMove={(dx, dy) => { padRef.current.p2.dx = dx; padRef.current.p2.dy = dy; }}
                 onHold={(k, on) => { padRef.current.p2[k] = on; }}
                 onAction={a => handleVirtualAction(2, a)}
@@ -1146,8 +1245,24 @@ export default function App() {
         )}
       </div>
 
-      {/* Right Telemetry & Explainable AI Console (32%) */}
-      <aside className="lg:flex-[32_1_0] w-full lg:max-w-[420px] bg-[#0f1a14] border-t-2 lg:border-t-0 lg:border-l-2 border-[#1e3327] flex flex-col p-3 gap-2 overflow-y-auto z-20 shrink-0">
+      {/* Mobile Telemetry Drawer Backdrop */}
+      {isMobileTelemetryOpen && (
+        <div
+          onClick={() => setIsMobileTelemetryOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-in fade-in duration-200"
+        />
+      )}
+
+      {/* Right Telemetry & Explainable AI Console */}
+      <aside
+        className={`${
+          isDesktopSidebarOpen ? 'lg:flex' : 'lg:hidden'
+        } ${
+          isMobileTelemetryOpen
+            ? 'fixed inset-y-0 right-0 z-50 w-full max-w-sm flex shadow-2xl animate-in slide-in-from-right duration-200'
+            : 'hidden'
+        } lg:relative lg:flex-[32_1_0] lg:max-w-[420px] bg-[#0f1a14] border-t-2 lg:border-t-0 lg:border-l-2 border-[#1e3327] flex-col p-3 gap-2 overflow-y-auto shrink-0`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-[#1e3327]">
           <h1 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif tracking-tight">
@@ -1166,6 +1281,24 @@ export default function App() {
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
               {is2PlayerMode ? 'PVP REFEREE' : 'SELF-EXPLAINING CODE'}
             </span>
+            {/* Close Button on Mobile Drawer */}
+            <button
+              type="button"
+              onClick={() => setIsMobileTelemetryOpen(false)}
+              className="p-1 rounded-lg glass hover:bg-white/10 text-[#8ea396] hover:text-white lg:hidden ml-1"
+              aria-label="Close Telemetry Drawer"
+            >
+              <X size={16} />
+            </button>
+            {/* Collapse Button on Desktop */}
+            <button
+              type="button"
+              onClick={() => setIsDesktopSidebarOpen(false)}
+              className="p-1 rounded-lg glass hover:bg-white/10 text-[#8ea396] hover:text-white hidden lg:flex ml-1"
+              title="Minimize Sidebar (Theater View)"
+            >
+              <PanelRightClose size={16} />
+            </button>
           </div>
         </div>
 
