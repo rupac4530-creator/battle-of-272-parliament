@@ -262,13 +262,32 @@ export default function App() {
     }
   };
 
-  // Perform standard strike
+  // Perform standard strike (chains punch -> cross -> high martial arts kick, or airborne dropkick)
   const performStrike = (a: Combatant, b: Combatant) => {
-    a.atk = 0.28;
-    playSound(320, 0.07, 'square', 0.05, -100);
-    const range = 66 + (a.blast > 0 ? 32 : 0);
-    if (Math.abs(a.x - b.x) < range && Math.abs(a.y - b.y) < 70) {
-      handleHit(a, b, 7, 220);
+    const isAirborne = a.y < FLOOR_Y - 2;
+    const isForward = (a.facing > 0 && a.input.right) || (a.facing < 0 && a.input.left);
+    const attackType: 'punch' | 'cross' | 'kick' | 'dropkick' = a.attackType === 'kick'
+      ? 'kick'
+      : (isAirborne
+        ? 'dropkick'
+        : (isForward || (a.comboCount % 3 === 2) ? 'kick' : (a.comboCount % 2 === 1 ? 'cross' : 'punch')));
+
+    a.attackType = attackType;
+    a.atk = attackType === 'kick' ? 0.35 : (attackType === 'dropkick' ? 0.38 : 0.26);
+
+    if (attackType === 'kick' || attackType === 'dropkick') {
+      playSound(380, 0.12, 'sawtooth', 0.08, -140);
+      addFloatingText('KICK! 💥', a.x + a.facing * 44, a.y - 70, '#ff9933');
+    } else {
+      playSound(320, 0.07, 'square', 0.05, -100);
+    }
+
+    const range = (attackType === 'kick' || attackType === 'dropkick' ? 84 : 66) + (a.blast > 0 ? 32 : 0);
+    const dmg = attackType === 'kick' ? 9 : (attackType === 'dropkick' ? 10 : 7);
+    const knockback = attackType === 'kick' ? 270 : (attackType === 'dropkick' ? 320 : 210);
+
+    if (Math.abs(a.x - b.x) < range && Math.abs(a.y - b.y) < 75) {
+      handleHit(a, b, dmg, knockback);
     }
   };
 
@@ -276,7 +295,8 @@ export default function App() {
   const performSpecial = (a: Combatant, b: Combatant) => {
     const c = a.c;
     a.cdSpecial = 2.6;
-    a.atk = 0.3;
+    a.attackType = 'special';
+    a.atk = 0.34;
     const dist = Math.abs(a.x - b.x);
     playSound(520, 0.16, 'sawtooth', 0.07, -200);
     addFloatingText(SHOUTS[c.id] ?? '', a.x, a.y - 134, '#ffb347');
@@ -357,6 +377,7 @@ export default function App() {
   // Launch Cinematic Super Move
   const triggerSuperMove = (a: Combatant, b: Combatant) => {
     a.meter = 0;
+    a.attackType = 'super';
     cinematicRef.current = { actor: a, target: b, elapsed: 0 };
     // Deliver authentic politician voice with acoustic meme backing
     speakPoliticianVoice(a.c.speechText, a.c.voicePitch, a.c.voiceRate, true, a.c.id);
@@ -367,6 +388,8 @@ export default function App() {
   const releaseSuperAbility = (a: Combatant, b: Combatant) => {
     const k = a.c.superType;
     const f = a.facing;
+    a.surge = 1.4;
+    a.attackType = 'super';
     cameraShakeRef.current = 16;
     playSuperSound(k);
     addLog(a.isAI ? 'cpu' : 'me', `SUPER: ${a.c.name} unleashes ${a.c.superName}!`);
@@ -610,7 +633,12 @@ export default function App() {
             p1.input.right = keyboardStateRef.current.KeyD || pd1.dx > 0.25 ? 1 : 0;
             p1.input.block = keyboardStateRef.current.KeyS || pd1.block || pd1.dy > 0.65 ? 1 : 0;
             p1.input.jump = keyboardStateRef.current.KeyW || pd1.jump || pd1.dy < -0.55 ? 1 : 0;
-            if (justPressedRef.current.KeyJ || justPressedRef.current.Space) p1.input.strike = 1;
+            if (justPressedRef.current.KeyU || justPressedRef.current.KeyI) {
+              p1.attackType = 'kick';
+              p1.input.strike = 1;
+            } else if (justPressedRef.current.KeyJ || justPressedRef.current.Space) {
+              p1.input.strike = 1;
+            }
             if (justPressedRef.current.KeyK) p1.input.special = 1;
             if (justPressedRef.current.KeyF) p1.input.pickupLine = 1;
             if (justPressedRef.current.KeyQ || justPressedRef.current.KeyL) p1.input.superMove = 1;
@@ -862,14 +890,29 @@ export default function App() {
               ctx.globalAlpha = 0.6;
             }
 
+            const isSuperActive = (cinematicRef.current?.actor === combatant) || combatant.surge > 0;
+            const superProg = cinematicRef.current?.actor === combatant
+              ? Math.min(1, cinematicRef.current.elapsed / 2.3)
+              : (combatant.surge > 0 ? 1 - combatant.surge / 1.4 : 0);
+            const atkDur = combatant.attackType === 'kick' ? 0.35 : (combatant.attackType === 'dropkick' ? 0.38 : 0.26);
+
             drawPolitician(ctx, combatant.c, combatant.x, combatant.y, combatant.facing, {
+              scale: 1.0,
               time: currentTs * 0.001,
               isWalking: Math.abs(combatant.vx) > 30 && combatant.y >= FLOOR_Y - 1,
-              attackProg: combatant.atk > 0 ? Math.min(1, combatant.atk * 5) : 0,
-              attackPhase: combatant.atk > 0 ? 1 - combatant.atk / 0.3 : 0,
+              walkSpeed: Math.abs(combatant.vx),
+              attackProg: combatant.atk > 0 ? Math.min(1, combatant.atk * 5) : (isSuperActive ? 1.0 : 0),
+              attackPhase: combatant.atk > 0 ? 1 - combatant.atk / atkDur : (isSuperActive ? superProg : 0),
+              attackType: combatant.attackType || (combatant.y < FLOOR_Y - 2 ? 'dropkick' : 'punch'),
               airborne: combatant.y < FLOOR_Y - 2,
               blocking: combatant.blocking,
-              stunned: combatant.stun > 0
+              stunned: combatant.stun > 0,
+              isSuper: isSuperActive,
+              superPhase: superProg,
+              superType: combatant.c.superType,
+              facing: combatant.facing,
+              vx: combatant.vx,
+              vy: combatant.vy
             });
             ctx.globalAlpha = 1.0;
 

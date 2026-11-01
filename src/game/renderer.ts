@@ -205,8 +205,12 @@ export function drawPolitician(
   y: number,
   facing: number,
   options: {
-    scale?: number; time?: number; isWalking?: boolean; attackProg?: number;
-    attackPhase?: number; airborne?: boolean; blocking?: boolean; stunned?: boolean;
+    scale?: number; time?: number; isWalking?: boolean; walkSpeed?: number;
+    attackProg?: number; attackPhase?: number;
+    attackType?: 'punch' | 'cross' | 'kick' | 'dropkick' | 'special' | 'super';
+    airborne?: boolean; blocking?: boolean; stunned?: boolean;
+    isSuper?: boolean; superPhase?: number; superType?: string;
+    facing?: number; vx?: number; vy?: number;
   } = {}
 ) {
   if (draw3D(ctx, c, x, y, facing, options.scale || 1, options)) return;
@@ -242,11 +246,21 @@ export function drawPolitician(
   };
   const footCol = c.id === 'mamata' ? '#2aa3dc' : '#17120f';
 
-  // Ground contact shadow-free: legs
-  limb(-5, -42, -5 + ph * 9, -4, 11, shade(c.pants, -30));
-  limb(5, -42, 5 - ph * 9, -4, 11, c.pants);
-  shoe(-5 + ph * 9, footCol);
-  shoe(5 - ph * 9, footCol);
+  // Ground contact shadow-free: legs with kicking & jumping support
+  if ((options.attackType === 'kick' || options.attackType === 'dropkick') && at > 0) {
+    const kickExt = 26 + at * 28;
+    // Plant leg
+    limb(-8, -42, -14, -4, 11, shade(c.pants, -30));
+    shoe(-14, footCol);
+    // Extended kicking leg
+    limb(6, -42, 6 + kickExt, -32 - at * 12, 11, c.pants);
+    shoe(6 + kickExt, footCol);
+  } else {
+    limb(-5, -42, -5 + ph * 9, -4, 11, shade(c.pants, -30));
+    limb(5, -42, 5 - ph * 9, -4, 11, c.pants);
+    shoe(-5 + ph * 9, footCol);
+    shoe(5 - ph * 9, footCol);
+  }
 
   if (skirt) {
     // Saree / robe drape over legs with pleats
@@ -620,7 +634,12 @@ export function drawSuperCinematic(
   drawPolitician(ctx, c, 210 + slideIn, 435, 1, {
     scale: 3.6,
     time: elapsed,
-    attackProg: elapsed > 0.5 ? Math.abs(Math.sin(elapsed * 5)) : 0
+    attackProg: 1.0,
+    attackPhase: Math.min(1, elapsed / 2.3),
+    attackType: 'super',
+    isSuper: true,
+    superPhase: Math.min(1, elapsed / 2.3),
+    superType: c.superType
   });
 
   // 5. Super Move Title Banner

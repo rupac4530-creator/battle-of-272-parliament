@@ -19,12 +19,26 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (!ending || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawPolitician(ctx, ending.winner.c, canvas.width / 2, canvas.height - 6, 1, { scale: 1.4 });
+    if (!ending) return;
+    let animId: number;
+    const render = () => {
+      if (canvasRef.current) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          drawPolitician(ctx, ending.winner.c, canvas.width / 2, canvas.height - 6, 1, {
+            scale: 1.4,
+            time: performance.now() * 0.001,
+            isSuper: true,
+            superPhase: 0.6
+          });
+        }
+      }
+      animId = requestAnimationFrame(render);
+    };
+    animId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(animId);
   }, [ending]);
 
   if (!ending) return null;

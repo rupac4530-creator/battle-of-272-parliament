@@ -43,6 +43,7 @@ export interface Combatant {
   cdSpecial: number;
   stun: number;
   atk: number;
+  attackType?: 'punch' | 'cross' | 'kick' | 'dropkick' | 'special' | 'super';
   freeze: number;
   invincible: number;
   damageBoost: number;

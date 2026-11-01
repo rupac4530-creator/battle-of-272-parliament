@@ -47,14 +47,25 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
     return () => window.removeEventListener('fighter3d-ready', f);
   }, []);
 
-  // Render preview portrait whenever selectedPolitician changes
+  // Render animated preview portrait whenever selectedPolitician changes
   useEffect(() => {
-    if (!previewCanvasRef.current) return;
-    const canvas = previewCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawPolitician(ctx, selectedPolitician, canvas.width / 2, canvas.height - 4, 1, { scale: 0.95 });
+    let animId: number;
+    const render = () => {
+      if (previewCanvasRef.current) {
+        const canvas = previewCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          drawPolitician(ctx, selectedPolitician, canvas.width / 2, canvas.height - 4, 1, {
+            scale: 0.95,
+            time: performance.now() * 0.001
+          });
+        }
+      }
+      animId = requestAnimationFrame(render);
+    };
+    animId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(animId);
   }, [selectedPolitician, tick]);
 
   const handlePick = (p: Politician) => {
