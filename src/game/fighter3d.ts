@@ -1,7 +1,10 @@
 /**
  * Real-time 3D fighters (three.js) drawn into the existing 2D stage canvas.
  * - Modi uses the supplied FBX model (public/models/modi/modi.fbx); add ?modi=procedural to force the built-in body.
- * - Everyone else gets a procedural 3D body (capsule limbs, lit skin/cloth, hair, beard, glasses, attire).
+ * - Shah, Rahul, Yogi, Rajnath, Sitharaman, Kharge, Kejriwal and Mamata use optimised GLB models
+ *   (public/models/<id>/<id>.glb, made by tools/optimize_fbx.py). They load on demand; until a model has
+ *   arrived, or if it fails, the fighter uses the procedural body. Add ?models=procedural to force the built-in bodies.
+ * - Any fighter without a model gets a procedural 3D body (capsule limbs, lit skin/cloth, hair, beard, glasses, attire).
  * If WebGL/three fails, draw3D() returns false and the old 2D art is used.
  */
 import { Politician } from './types';
@@ -15,6 +18,9 @@ const SZ = 384, PX = 87, FEET = 285, DRAW = 2 / 3, TAU = Math.PI * 2;
 let T: any = null, renderer: any, scene: any, cam: any, glCanvas: HTMLCanvasElement;
 let ready = false, failed = false, started = false, modiFbx: any = null;
 const rigs = new Map<string, any>();
+const GLB_IDS = new Set(['shah', 'rahul', 'yogi', 'rajnath', 'sitharaman', 'kharge', 'kejriwal', 'mamata']);
+const glbRigs = new Map<string, any>();      // loaded model rigs by fighter id
+const glbLoading = new Set<string>();         // ids already requested (success or failure)
 const ease = (v: number) => v * v * (3 - 2 * v);
 const notify = () => window.dispatchEvent(new Event('fighter3d-ready'));
 
@@ -66,6 +72,26 @@ async function loadModi() {
       notify();
     });
   } catch (e) { console.warn('Modi FBX failed, using procedural body', e); }
+}
+
+/** Loads public/models/<id>/<id>.glb (already centred, feet on y=0, 1.82 m tall, facing +z). */
+async function loadGlb(id: string) {
+  if (glbLoading.has(id) || new URLSearchParams(location.search).get('models') === 'procedural') return;
+  glbLoading.add(id);
+  try {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+    new GLTFLoader().load(`${base}/models/${id}/${id}.glb`, (gltf: any) => {
+      const obj = gltf.scene;
+      obj.rotation.y = Math.PI / 2; // model faces +z -> make it face +x
+      obj.traverse((o: any) => { if (o.isMesh) o.frustumCulled = false; });
+      const wrap = new T.Group(); wrap.add(obj);
+      const root = new T.Group(); root.add(wrap);
+      glbRigs.set(id, { root, body: wrap, a: null });
+      rigs.delete(id);   // drop the temporary procedural body
+      notify();
+    }, undefined, (e: any) => console.warn(`3D model for ${id} failed, using procedural body`, e));
+  } catch (e) { console.warn(`3D model for ${id} failed, using procedural body`, e); }
 }
 
 function build(c: Politician) {
@@ -201,9 +227,11 @@ export function draw3D(ctx: CanvasRenderingContext2D, c: Politician, x: number, 
   if (!ready) return false;
   let rig = rigs.get(c.id);
   if (!rig) {
-    rig = c.id === 'modi' && modiFbx ? modiFbx : build(c);
-    if (rig === modiFbx) rig.root.rotation.y = -0.5;
+    const model = c.id === 'modi' ? modiFbx : glbRigs.get(c.id);
+    rig = model || build(c);
+    if (model) rig.root.rotation.y = -0.5;
     rigs.set(c.id, rig);
+    if (!model && GLB_IDS.has(c.id)) void loadGlb(c.id);
   }
   scene.add(rig.root);
   pose(rig, p);
