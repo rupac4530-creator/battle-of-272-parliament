@@ -7,6 +7,65 @@ let audioCtx: AudioContext | null = null;
 const audioCache: Record<string, HTMLAudioElement> = {};
 let isVoiceEnabled = true;
 
+// ── Background Battle Music ──────────────────────────────────────────
+let bgMusic: HTMLAudioElement | null = null;
+let bgMusicVolume = 0.28;
+
+/**
+ * Start looping background music during battle.
+ * Uses the Ramayan "Ram Hi Janey Mahasangram" track from /music/.
+ * Handles browser autoplay policy gracefully.
+ */
+export function startBattleMusic() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!bgMusic) {
+      const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+      bgMusic = new Audio(`${base}/music/ram-hi-janey-mahasangram.mp3`);
+      bgMusic.loop = true;
+      bgMusic.volume = bgMusicVolume;
+      bgMusic.preload = 'auto';
+    }
+    bgMusic.currentTime = 0;
+    bgMusic.volume = bgMusicVolume;
+    const p = bgMusic.play();
+    if (p) {
+      p.catch(() => {
+        // Autoplay blocked — will retry on first user interaction
+        const resume = () => {
+          if (bgMusic) {
+            bgMusic.play().catch(() => {});
+          }
+          window.removeEventListener('pointerup', resume);
+          window.removeEventListener('keydown', resume);
+        };
+        window.addEventListener('pointerup', resume, { once: true });
+        window.addEventListener('keydown', resume, { once: true });
+      });
+    }
+  } catch {
+    // Ignore — music is non-critical
+  }
+}
+
+/**
+ * Stop/pause the background battle music.
+ */
+export function stopBattleMusic() {
+  if (bgMusic) {
+    bgMusic.pause();
+    bgMusic.currentTime = 0;
+  }
+}
+
+/**
+ * Set background music volume (0.0 – 1.0).
+ */
+export function setBattleMusicVolume(v: number) {
+  bgMusicVolume = Math.max(0, Math.min(1, v));
+  if (bgMusic) bgMusic.volume = bgMusicVolume;
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   if (!audioCtx) {

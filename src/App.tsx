@@ -33,7 +33,9 @@ import {
   playSuperSound,
   speakPoliticianVoice,
   setVoiceEnabled,
-  getVoiceEnabled
+  getVoiceEnabled,
+  startBattleMusic,
+  stopBattleMusic
 } from './game/audio';
 import { IndiaMapSelect } from './components/IndiaMapSelect';
 import { AIDecisionInspector } from './components/AIDecisionInspector';
@@ -551,6 +553,7 @@ export default function App() {
 
     setGameEnding(null);
     setGameState('play');
+    startBattleMusic();
     updateCoach('Rule 1: Move left/right with [A]/[D] or Virtual Joystick into debate range.', 1);
     addLog('me', `Parliamentary Session Commenced: ${p1Politician.name} vs ${p2Politician.name}.`);
     playSound(260, 0.3, 'triangle', 0.07, 200);
@@ -858,6 +861,7 @@ export default function App() {
             if (ending) {
               setGameEnding(ending);
               setGameState('over');
+              stopBattleMusic();
             }
           }
 
