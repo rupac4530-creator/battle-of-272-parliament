@@ -1,0 +1,105 @@
+{
+ "_note": "Part 4-1. scale = fraction of the pose rotation angle kept (1.0 = full). leg applies to thigh+knee+foot, arm to arm_raise+elbow+wrist. Budget per pose: edges>10x <=20 and edges>6x <=120 (my choice). torso and head are NOT_CALIBRATED here.",
+ "models": {
+  "rahul": {
+   "leg": 1.0,
+   "leg_status": "MET",
+   "arm": 1.0,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "NEEDS_OWN_TUNING",
+   "empty_bones": []
+  },
+  "shah": {
+   "leg": 0.6,
+   "leg_status": "MET",
+   "arm": 1.0,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "OK",
+   "empty_bones": []
+  },
+  "rajnath": {
+   "leg": 0.8,
+   "leg_status": "MET",
+   "arm": 1.0,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "OK",
+   "empty_bones": []
+  },
+  "yogi": {
+   "leg": 1.0,
+   "leg_status": "MET",
+   "arm": 1.0,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "OK",
+   "empty_bones": []
+  },
+  "kejriwal": {
+   "leg": 1.0,
+   "leg_status": "MET",
+   "arm": 0.9,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "OK",
+   "empty_bones": []
+  },
+  "mamata": {
+   "leg": 0.4,
+   "leg_status": "NOT_MET",
+   "arm": 0.4,
+   "arm_status": "NOT_MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "NEEDS_OWN_TUNING",
+   "empty_bones": [
+    "LeftShoulder"
+   ]
+  },
+  "sitharaman": {
+   "leg": 1.0,
+   "leg_status": "MET",
+   "arm": 1.0,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "NEEDS_OWN_TUNING",
+   "empty_bones": [
+    "RightShoulder"
+   ]
+  },
+  "kharge": {
+   "leg": 0.8,
+   "leg_status": "MET",
+   "arm": 0.9,
+   "arm_status": "MET",
+   "torso": 1.0,
+   "torso_status": "NOT_CALIBRATED",
+   "head": 1.0,
+   "head_status": "NOT_CALIBRATED",
+   "mirror": "OK",
+   "empty_bones": []
+  }
+ }
+}

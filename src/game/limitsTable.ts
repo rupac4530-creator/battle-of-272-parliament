@@ -1,0 +1,2 @@
+// Part 5-3c1: per-character limits from Part 4-1 (leg = thigh+knee+foot, arm = arm_raise+elbow+wrist).
+export const LIMITS: Record<string, { leg: number; arm: number }> = {"rahul": {"leg": 1.0, "arm": 1.0}, "shah": {"leg": 0.6, "arm": 1.0}, "rajnath": {"leg": 0.8, "arm": 1.0}, "yogi": {"leg": 1.0, "arm": 1.0}, "kejriwal": {"leg": 1.0, "arm": 0.9}, "mamata": {"leg": 0.4, "arm": 0.4}, "sitharaman": {"leg": 1.0, "arm": 1.0}, "kharge": {"leg": 0.8, "arm": 0.9}};

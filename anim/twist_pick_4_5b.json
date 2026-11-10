@@ -1,0 +1,37 @@
+{
+ "note": "Part 4-5b picks: torso-twist scale ts per model and clip (1.0 = the 4-5 clip). Punch inward swing e is unchanged (anim/punch_pick_4_5.json).",
+ "twist_scale": {
+  "rahul": {
+   "jab": 1.0,
+   "cross": 1.0
+  },
+  "shah": {
+   "jab": 1.0,
+   "cross": 0.75
+  },
+  "rajnath": {
+   "jab": 1.0,
+   "cross": 1.0
+  },
+  "yogi": {
+   "jab": 1.0,
+   "cross": 1.0
+  },
+  "kejriwal": {
+   "jab": 0.75,
+   "cross": 1.0
+  },
+  "mamata": {
+   "jab": 1.0,
+   "cross": 0.75
+  },
+  "sitharaman": {
+   "jab": 1.0,
+   "cross": 1.0
+  },
+  "kharge": {
+   "jab": 1.0,
+   "cross": 1.0
+  }
+ }
+}

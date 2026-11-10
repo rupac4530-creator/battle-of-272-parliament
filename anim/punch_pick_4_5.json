@@ -1,0 +1,9 @@
+{
+ "note": "Part 4-5 picks: e = inward swing of the punch arm (degrees) for the wide four; the guard stance uses anim/narrow_guard_4_2b.json.",
+ "punch_in_deg": {
+  "kejriwal": 20,
+  "mamata": 10,
+  "sitharaman": 20,
+  "kharge": 30
+ }
+}

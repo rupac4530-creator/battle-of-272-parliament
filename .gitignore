@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Pipeline preview images (large, not needed in repo)
+previews*/
+# Pipeline apply script (one-time use)
+tools/apply_pipeline.py

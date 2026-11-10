@@ -1,0 +1,19 @@
+{
+ "note": "Part 4-2b picks. arm_in_deg: LeftArm z = -d, RightArm z = +d added to the 4-2 narrow stance (wide four only). light_hit_scale: multiply the 4-4 H1 deltas.",
+ "arm_in_deg": {
+  "kejriwal": 40,
+  "mamata": 0,
+  "sitharaman": 40,
+  "kharge": 40
+ },
+ "light_hit_scale": {
+  "rahul": 2.0,
+  "shah": 2.0,
+  "rajnath": 2.0,
+  "yogi": 2.0,
+  "kejriwal": 2.0,
+  "mamata": 2.0,
+  "sitharaman": 2.0,
+  "kharge": 2.0
+ }
+}
