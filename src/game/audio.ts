@@ -9,7 +9,7 @@ let isVoiceEnabled = true;
 
 // ── Background Battle Music ──────────────────────────────────────────
 let bgMusic: HTMLAudioElement | null = null;
-let bgMusicVolume = 0.28;
+let bgMusicVolume = 0.55;
 
 /**
  * Start looping background music during battle.
@@ -19,28 +19,37 @@ let bgMusicVolume = 0.28;
 export function startBattleMusic() {
   if (typeof window === 'undefined') return;
   try {
-    if (!bgMusic) {
-      const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
-      bgMusic = new Audio(`${base}/music/ram-hi-janey-mahasangram.mp3`);
+    // Always recreate to avoid stale / errored elements
+    const base = (import.meta.env?.BASE_URL || './').replace(/\/$/, '');
+    const src = `${base}/music/ram-hi-janey-mahasangram.mp3`;
+    if (!bgMusic || bgMusic.error) {
+      bgMusic = new Audio(src);
       bgMusic.loop = true;
-      bgMusic.volume = bgMusicVolume;
       bgMusic.preload = 'auto';
     }
     bgMusic.currentTime = 0;
     bgMusic.volume = bgMusicVolume;
+
+    const tryPlay = () => {
+      if (!bgMusic) return;
+      bgMusic.play().catch(() => {});
+    };
+
     const p = bgMusic.play();
     if (p) {
       p.catch(() => {
-        // Autoplay blocked — will retry on first user interaction
+        // Autoplay blocked — retry on very next user interaction
         const resume = () => {
-          if (bgMusic) {
-            bgMusic.play().catch(() => {});
-          }
+          tryPlay();
           window.removeEventListener('pointerup', resume);
           window.removeEventListener('keydown', resume);
+          window.removeEventListener('touchstart', resume);
+          window.removeEventListener('click', resume);
         };
         window.addEventListener('pointerup', resume, { once: true });
         window.addEventListener('keydown', resume, { once: true });
+        window.addEventListener('touchstart', resume, { once: true });
+        window.addEventListener('click', resume, { once: true });
       });
     }
   } catch {
