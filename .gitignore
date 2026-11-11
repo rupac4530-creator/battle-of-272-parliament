@@ -11,3 +11,6 @@ coverage/
 previews*/
 # Pipeline apply script (one-time use)
 tools/apply_pipeline.py
+
+__pycache__/
+tools/__pycache__/
