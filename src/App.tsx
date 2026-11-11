@@ -149,7 +149,26 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('autostart') === '1') {
-      startMatch(POLITICIANS[0], POLITICIANS[1]);
+      setIsLoadingIntro(false);
+      const p1Id = params.get('p1');
+      const p2Id = params.get('p2');
+      const p1 = POLITICIANS.find(p => p.id === p1Id) || POLITICIANS[0];
+      const p2 = POLITICIANS.find(p => p.id === p2Id) || POLITICIANS[1];
+      startMatch(p1, p2);
+
+      const forceSuper = params.get('super');
+      const delay = parseFloat(params.get('superDelay') || '600');
+      if (forceSuper) {
+        setTimeout(() => {
+          if (combatantsRef.current) {
+            const actor = forceSuper === 'p2' ? combatantsRef.current.p2 : combatantsRef.current.p1;
+            const target = forceSuper === 'p2' ? combatantsRef.current.p1 : combatantsRef.current.p2;
+            target.meter = 0;
+            actor.meter = 100;
+            triggerSuperMove(actor, target);
+          }
+        }, delay);
+      }
     }
   }, []);
 
