@@ -14,3 +14,22 @@ tools/apply_pipeline.py
 
 __pycache__/
 tools/__pycache__/
+
+# Security: block sensitive file types
+# Private keys
+*.pem
+*.key
+*.p12
+*.pfx
+# Secret files
+*.secret
+# Backups
+*.bak
+# Database dumps
+*.sql
+*.sqlite
+*.db
+# Environment variants
+.env.local
+.env.production
+.env.staging
