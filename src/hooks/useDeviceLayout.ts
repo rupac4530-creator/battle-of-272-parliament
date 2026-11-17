@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { detectTouchPrimary, TOUCH_PRIMARY_QUERY } from '../game/logic';
 
 /**
  * Single source of truth for "what kind of screen is this and how should the
@@ -18,11 +19,14 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type RotateMode = 'auto' | 'on' | 'off';
 
-export const detectTouch = (): boolean =>
+/** True on phones and tablets (finger is the main pointer, nothing hovers). Touch-screen
+ *  laptops are false, so they never get the rotated layout or the on-screen pad by default. */
+export const readTouchPrimary = (): boolean =>
   typeof window !== 'undefined' &&
-  ('ontouchstart' in window ||
-    navigator.maxTouchPoints > 0 ||
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  detectTouchPrimary(
+    typeof window.matchMedia === 'function' ? window.matchMedia.bind(window) : undefined,
+    navigator.userAgent
+  );
 
 /** Upright touch device small enough that landscape play is the better layout. */
 export const shouldAutoRotate = (w: number, h: number, touch: boolean): boolean =>
@@ -35,7 +39,16 @@ export function useDeviceLayout() {
     typeof window === 'undefined' ? { w: 1024, h: 768 } : readSize()
   );
   const [mode, setMode] = useState<RotateMode>('auto');
-  const touch = detectTouch();
+  const [touch, setTouch] = useState(readTouchPrimary);
+
+  // The main pointer can change while the page is open (a tablet gets a keyboard, a phone gets a mouse).
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia(TOUCH_PRIMARY_QUERY);
+    const sync = () => setTouch(readTouchPrimary());
+    mq.addEventListener?.('change', sync);
+    return () => mq.removeEventListener?.('change', sync);
+  }, []);
 
   useEffect(() => {
     let raf = 0;
@@ -87,5 +100,5 @@ export function useDeviceLayout() {
     setMode(isForceRotated ? 'off' : 'on');
   }, [isForceRotated]);
 
-  return { viewportDims, isPortrait, isTouch: touch, isForceRotated, appW, appH, toggleRotate };
+  return { viewportDims, isPortrait, isTouchPrimary: touch, isForceRotated, appW, appH, toggleRotate };
 }

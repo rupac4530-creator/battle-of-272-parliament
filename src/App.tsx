@@ -1,4 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import {
+  VETO,
+  PARRY,
+  KADI_NINDA,
+  DHARNA_INVINCIBLE_SECONDS,
+  MAMATA_COMBO_COOLDOWN,
+  AI_DODGE_CHANCE, CAMERA, MODI_WAVE, STRIKE_DAMAGE, PICKUP_LINE, SUPER_TICK, MUFFLER_HOOK, RAHUL_HEAL, SHAH_CHAIN_DMG, SHAH_FREEZE_SECONDS, RAFALE, MOVE, HIT_FEEL, CUTSCENE_END, HUD_TEXT, GHOST_BAR, FLOAT_TEXT, CLOCK, REFUSAL_TEXT, PHONE_HUD, VS, VOICE, AUDIO_UI, DECISION_UI } from './game/balance';
+import { prefersReducedMotion } from './game/motion';
 import {
   Politician,
   Combatant,
@@ -10,19 +18,60 @@ import {
   GameEnding
 } from './game/types';
 import {
+  updateOrder,
   POLITICIANS,
   SPEED_FACTORS,
   createCombatant,
   calculateHitDamage,
+  pickStrikeType,
+  superInRange,
+  decayPerFrame,
+  cameraTargetZoom,
+  cameraEase,
+  cameraTransform,
+  hitFeel,
+  bufferStep,
+  separateFighters,
+  integrate,
+  stepHorizontal,
+  cutsceneSkipTo,
+  pickRenderScale,
+  superReadyLabel,
+  thoughtBubbleBox,
+  newGhostBar,
+  stepGhostBar,
+  clockLook,
+  invincibleAlpha,
+  appliedShake,
+  clockTickFreq,
+  floatingTextLife,
+  layoutFloatingText,
   checkVictoryCondition,
   calculateAIUtilities,
-  SHOUTS
+  logPrefix,
+  isDuplicateFloat,
+  type LogType,
+  SHOUTS,
+  phoneHudLayout,
+  coachMayReplace,
+  stepRoster, inspectDisabledReason, pickOpponent, rerollOpponent, vsMaySkip,
+  effectiveMusicVolume,
+  shouldPublishDecision,
+  actionLabel,
+  formatEv,
 } from './game/logic';
+import { PARODY_NOTICE } from './game/notice';
+import { isActive, primaryLabel, controlsSummary, swallowedInMatch, PAUSE_CODES } from './game/controls';
+import { useModalA11y } from './hooks/useModalA11y';
+import { usePersistedSetting } from './hooks/usePersistedSetting';
+import { warmFighter } from './game/warm';
+import { loadSettings } from './game/settings';
 import {
   STAGE_WIDTH,
   STAGE_HEIGHT,
   FLOOR_Y,
   getChamberBackground,
+  prepareStageCanvas,
   drawPolitician,
   drawPowerUp,
   drawProjectile,
@@ -35,22 +84,32 @@ import {
   setVoiceEnabled,
   getVoiceEnabled,
   startBattleMusic,
-  stopBattleMusic
+  stopBattleMusic,
+  pauseAllAudio,
+  resumeAllAudio,
+  stopAllVoices,
+  stopVoice,
+  setBattleMusicVolume
 } from './game/audio';
 import { IndiaMapSelect } from './components/IndiaMapSelect';
+import { VersusCard } from './components/VersusCard';
 import { AIDecisionInspector } from './components/AIDecisionInspector';
 import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
 import { IntroLoadingScreen } from './components/IntroLoadingScreen';
-import { useDeviceLayout } from './hooks/useDeviceLayout';
+import { useDeviceLayout, readTouchPrimary } from './hooks/useDeviceLayout';
 import { enterImmersive, exitImmersive, isFullscreen, canFullscreen } from './game/display';
 import {
   Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
   Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
   Briefcase, Scroll, Play, Pause, MapIcon, Github, X,
-  RotateCw, Maximize2, PanelRightClose, PanelRightOpen
+  RotateCw, Maximize2, PanelRightClose, PanelRightOpen,
+  Volume2, VolumeX
 } from 'lucide-react';
+
+/** Versus card state (F34): 'pick' = Player 2 chooses a fighter, 'vs' = the matchup is shown before the bell. */
+type VsState = { phase: 'pick' | 'vs'; p1: Politician; p2: Politician | null };
 
 const TAU = Math.PI * 2;
 const POWERUP_TYPES = ['case', 'cup', 'gavel', 'mic'] as const;
@@ -60,30 +119,107 @@ export default function App() {
   const mascotCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const logContainerRef = useRef<HTMLDivElement | null>(null);
 
+  // F44: choices saved from the last visit (read once; every field is optional and falls back to the default).
+  const [saved] = useState(() => loadSettings(POLITICIANS.map(p => p.id)));
+
   // High-level App State
   const [isLoadingIntro, setIsLoadingIntro] = useState(true);
   const [gameState, setGameState] = useState<'menu' | 'play' | 'over'>('menu');
-  const [selectedPolitician, setSelectedPolitician] = useState<Politician>(POLITICIANS[0]);
-  const [is2PlayerMode, setIs2PlayerMode] = useState(false);
-  const [isVoiceOn, setIsVoiceOn] = useState(true);
-  const [isCoachOn, setIsCoachOn] = useState(true);
-  const [isGamepadVisible, setIsGamepadVisible] = useState(true);
+  const [selectedPolitician, setSelectedPolitician] = useState<Politician>(
+    () => POLITICIANS.find(p => p.id === saved.fighterId) ?? POLITICIANS[0]
+  );
+  const [is2PlayerMode, setIs2PlayerMode] = useState(saved.twoPlayer ?? false);
+  // Versus card (F34): 'pick' = Player 2 chooses a fighter, 'vs' = the matchup is shown for a moment before the bell.
+  const [vs, setVs] = useState<VsState | null>(null);
+  // F55: while the VS card is up, start loading both fighters' 3D models so the match opens with the real bodies
+  // instead of a plain body that swaps in a moment later.
+  useEffect(() => {
+    if (!vs || vs.phase !== 'vs' || !vs.p1 || !vs.p2) return;
+    const a = vs.p1;
+    const b = vs.p2;
+    const warm = () => { warmFighter(a); warmFighter(b); };
+    warm();
+    const id = window.setInterval(warm, 150);
+    return () => window.clearInterval(id);
+  }, [vs]);
+  const vsOpenedAtRef = useRef(0);
+  const [isVoiceOn, setIsVoiceOn] = useState(saved.voiceOn ?? true);
+  // Music volume (F37): the slider value and a mute switch. Mute keeps the slider value so unmuting restores it.
+  const [musicVolume, setMusicVolume] = useState<number>(saved.musicVolume ?? AUDIO_UI.defaultMusicVolume);
+  const [isMusicMuted, setIsMusicMuted] = useState(saved.musicMuted ?? false);
+  const [isCoachOn, setIsCoachOn] = useState(saved.coachOn ?? true);
+  const [isGamepadVisible, setIsGamepadVisible] = useState<boolean>(() => saved.gamepad ?? readTouchPrimary());
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  // The CPU fighter whose voice the inspector's Speak buttons play (set when the inspector opens).
+  const [inspectorSpeakerId, setInspectorSpeakerId] = useState<string | undefined>(undefined);
   const [isRulebookOpen, setIsRulebookOpen] = useState(false);
   const [activeDecision, setActiveDecision] = useState<AIDecision | null>(null);
   const [gameEnding, setGameEnding] = useState<GameEnding | null>(null);
   const [coachTip, setCoachTip] = useState<string | null>(null);
   const [isSuperReadyP1, setIsSuperReadyP1] = useState(false);
+  // True while a super cutscene plays: the on-screen pad and Rule Coach step out of the way.
+  const [isCutscene, setIsCutscene] = useState(false);
   const [activeDecisionTreeAction, setActiveDecisionTreeAction] = useState<string>('Strike');
   const [treeUtilityScores, setTreeUtilityScores] = useState<Record<string, number>>({});
 
+  // Send the music volume to the engine whenever the slider or the mute switch changes (also before the music starts).
+  useEffect(() => {
+    setBattleMusicVolume(effectiveMusicVolume(musicVolume, isMusicMuted));
+  }, [musicVolume, isMusicMuted]);
+
   // Device / orientation layout (see hooks/useDeviceLayout.ts)
-  const { viewportDims, isForceRotated, isTouch, toggleRotate } = useDeviceLayout();
+  const { viewportDims, isForceRotated, isTouchPrimary, toggleRotate } = useDeviceLayout();
   const [isFs, setIsFs] = useState<boolean>(() => typeof document !== 'undefined' && isFullscreen());
   const fsTriedRef = useRef(false);
 
   const [isMobileTelemetryOpen, setIsMobileTelemetryOpen] = useState<boolean>(false);
-  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(true);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState<boolean>(saved.sidebarOpen ?? true);
+
+  // F44: store each choice when the player changes it. A value is written only once it differs from what was
+  // loaded, so the pad default (which follows the device) is not frozen by saving some other setting.
+  usePersistedSetting('voiceOn', isVoiceOn);
+  usePersistedSetting('coachOn', isCoachOn);
+  usePersistedSetting('gamepad', isGamepadVisible);
+  usePersistedSetting('twoPlayer', is2PlayerMode);
+  usePersistedSetting('fighterId', selectedPolitician.id);
+  usePersistedSetting('sidebarOpen', isDesktopSidebarOpen);
+  usePersistedSetting('musicVolume', musicVolume);
+  usePersistedSetting('musicMuted', isMusicMuted);
+  // A saved "voice clips off" has to reach the audio engine too, not just the button label.
+  useEffect(() => {
+    setVoiceEnabled(isVoiceOn);
+  }, [isVoiceOn]);
+
+  // F29: measure the stage box (layout px, unaffected by the forced-rotation transform) so the phone HUD can
+  // keep its buttons below the canvas's top HUD strip and move the Rule Coach to the bottom.
+  const stageBoxRef = useRef<HTMLDivElement>(null);
+  const shownTipsRef = useRef<Set<string>>(new Set());
+  const isShortRef = useRef(false);
+  const [stageBox, setStageBox] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    const el = stageBoxRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.offsetWidth, h = el.offsetHeight;
+      setStageBox((prev: { w: number; h: number }) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const phoneHud = phoneHudLayout(stageBox.w, stageBox.h);
+  isShortRef.current = phoneHud.isShort;
+  // On short screens a tip shows for a few seconds and goes away by itself (a new tip restarts the timer).
+  useEffect(() => {
+    if (!coachTip || !phoneHud.isShort) return;
+    const id = window.setTimeout(() => setCoachTip(null), PHONE_HUD.coachSeconds * 1000);
+    return () => window.clearTimeout(id);
+  }, [coachTip, phoneHud.isShort]);
 
   // Keep the fullscreen flag in sync (Esc / system back / swipe can leave fullscreen)
   useEffect(() => {
@@ -99,7 +235,7 @@ export default function App() {
   // Phones: on the first tap, go fullscreen and lock landscape where the browser allows
   // it (Android Chrome). Where it does not (iPhone Safari) the CSS rotation is used.
   useEffect(() => {
-    if (!isTouch || !canFullscreen()) return;
+    if (!isTouchPrimary || !canFullscreen()) return;
     const onFirstTap = () => {
       if (fsTriedRef.current) return;
       fsTriedRef.current = true;
@@ -109,7 +245,7 @@ export default function App() {
     };
     window.addEventListener('pointerup', onFirstTap, { once: true });
     return () => window.removeEventListener('pointerup', onFirstTap);
-  }, [isTouch]);
+  }, [isTouchPrimary]);
 
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen()) await exitImmersive();
@@ -125,7 +261,9 @@ export default function App() {
   const floatingTextsRef = useRef<FloatingText[]>([]);
   const cinematicRef = useRef<{ actor: Combatant; target: Combatant; elapsed: number } | null>(null);
   const matchTimeRef = useRef<number>(60);
+  const ghostBarsRef = useRef({ p1: newGhostBar(100), p2: newGhostBar(100) });
   const cameraShakeRef = useRef<number>(0);
+  const cameraRef = useRef<{ zoom: number; cx: number }>({ zoom: 1, cx: STAGE_WIDTH / 2 });
   const nextPowerUpSpawnRef = useRef<number>(3);
   const isPausedRef = useRef<boolean>(false);
   const padRef = useRef({
@@ -136,9 +274,54 @@ export default function App() {
   const [isSuperReadyP2, setIsSuperReadyP2] = useState(false);
   const keyboardStateRef = useRef<Record<string, boolean>>({});
   const justPressedRef = useRef<Record<string, boolean>>({});
+  const simTickRef = useRef<number>(0);
   const lastAITimeRef = useRef<number>(0);
   const lastAIActionRef = useRef<string>('');
+  // F39: the CPU decides every 140 ms but React hears about it only while something on screen shows it.
+  const latestDecisionRef = useRef<AIDecision | null>(null);
+  const publishedBestRef = useRef<string | null>(null);
+  const decisionPublishedAtRef = useRef(0);
+  const decisionVisibleRef = useRef(false);
+  const isCoachOnRef = useRef(true);
+  const lastAIJumpRef = useRef<number>(-1e9);
   const coachStepRef = useRef<number>(0);
+
+  // One pause system: the match is held while ANY reason is active, so closing the inspector
+  // or rulebook can never undo a pause the player made themselves.
+  type PauseReason = 'user' | 'inspector' | 'rules';
+  const pauseReasonsRef = useRef<Set<PauseReason>>(new Set());
+
+  // Game-time scheduler for multi-shot supers: advanced by the simulation step, so it freezes with
+  // pause and cutscenes and is wiped on rematch / game over / back to map (setTimeout did none of that).
+  // Hit-stop: seconds of simulation freeze left, and a cooldown so volleys do not freeze repeatedly.
+  const hitStopRef = useRef(0);
+  const hitStopCdRef = useRef(0);
+  const scheduledRef = useRef<{ t: number; run: () => void }[]>([]);
+  const schedule = (delaySec: number, run: () => void) => {
+    scheduledRef.current.push({ t: delaySec, run });
+  };
+  const tickScheduled = (dt: number) => {
+    if (scheduledRef.current.length === 0) return;
+    const due: (() => void)[] = [];
+    scheduledRef.current = scheduledRef.current.filter((item: { t: number; run: () => void }) => {
+      item.t -= dt;
+      if (item.t <= 0) { due.push(item.run); return false; }
+      return true;
+    });
+    due.forEach(run => run());
+  };
+  const setPause = useCallback((reason: PauseReason, on: boolean) => {
+    const set = pauseReasonsRef.current;
+    if (on) set.add(reason); else set.delete(reason);
+    const paused = set.size > 0;
+    if (paused) {
+      // Presses made while held must not fire on resume.
+      justPressedRef.current = {};
+    }
+    isPausedRef.current = paused;
+    if (paused) pauseAllAudio(); else resumeAllAudio();
+    setIsPaused(set.has('user')); // the "HOUSE ADJOURNED" overlay is for the player's own pause only
+  }, []);
 
   // Sync state to body dataset for testing / automation
   useEffect(() => {
@@ -172,10 +355,10 @@ export default function App() {
     }
   }, []);
 
-  const addLog = useCallback((type: 'me' | 'cpu' | 'item' | 'super', msg: string) => {
+  const addLog = useCallback((type: LogType, msg: string) => {
     if (!logContainerRef.current) return;
     const entry = document.createElement('div');
-    entry.className = `p-1 rounded text-[11px] leading-tight border-l-2 transition-all animate-in fade-in slide-in-from-right duration-200 ${
+    entry.className = `p-1 rounded text-[11px] leading-tight border-l-2 transition-all animate-in fade-in duration-200 ${
       type === 'cpu'
         ? 'border-[#ff7b72] bg-[#ff7b72]/15 text-[#f5eedb]'
         : type === 'me'
@@ -184,8 +367,7 @@ export default function App() {
         ? 'border-[#ff9933] bg-[#ff9933]/20 text-[#ffd700] font-bold shadow-sm'
         : 'border-[#56d364] bg-[#56d364]/15 text-[#d8e5dc]'
     }`;
-    const prefix = type === 'super' ? '🔥 ' : type === 'item' ? '☕ ' : type === 'me' ? '⚡ ' : '🤖 ';
-    entry.textContent = `${prefix}${msg}`;
+    entry.textContent = `${logPrefix(type)}${msg}`;
     const container = logContainerRef.current;
     container.appendChild(entry);
     while (container.children.length > 30) {
@@ -194,11 +376,41 @@ export default function App() {
     container.scrollTop = container.scrollHeight;
   }, []);
 
+  useEffect(() => {
+    isCoachOnRef.current = isCoachOn;
+  }, [isCoachOn]);
+
+  const publishDecision = useCallback((d: AIDecision, nowMs: number) => {
+    setActiveDecision(d);
+    setActiveDecisionTreeAction(d.best);
+    setTreeUtilityScores(d.utilityMap);
+    publishedBestRef.current = d.best;
+    decisionPublishedAtRef.current = nowMs;
+  }, []);
+
+  // Is the decision on screen (inspector, phone drawer, or the desktop sidebar at lg width)? When it becomes visible, show the newest one at once.
+  useEffect(() => {
+    const mq = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 1024px)') : null;
+    const compute = () => {
+      const wide = mq ? mq.matches : true;
+      const visible = isInspectorOpen || isMobileTelemetryOpen || (isDesktopSidebarOpen && wide && gameState !== 'menu');
+      const was = decisionVisibleRef.current;
+      decisionVisibleRef.current = visible;
+      if (visible && !was && latestDecisionRef.current) publishDecision(latestDecisionRef.current, performance.now());
+    };
+    compute();
+    mq?.addEventListener?.('change', compute);
+    return () => mq?.removeEventListener?.('change', compute);
+  }, [isInspectorOpen, isMobileTelemetryOpen, isDesktopSidebarOpen, gameState, publishDecision]);
+
   const updateCoach = useCallback((text: string, step: number) => {
-    if (!isCoachOn || step < coachStepRef.current) return;
+    if (!isCoachOnRef.current || !coachMayReplace(coachStepRef.current, step)) return;
+    // Short screens: a tip that has already had its few seconds does not pop back (the item tip is re-sent every drop).
+    if (isShortRef.current && shownTipsRef.current.has(text)) return;
+    shownTipsRef.current.add(text);
     coachStepRef.current = step;
     setCoachTip(text);
-  }, [isCoachOn]);
+  }, []);
 
   // Spawn visual particle burst
   const spawnParticles = (x: number, y: number, count: number, color: string) => {
@@ -217,13 +429,19 @@ export default function App() {
   };
 
   // Add floating combat text
+  /** Like addFloatingText, but skipped while the same message is still showing near x (refusals while a key is mashed). */
+  const addRefusalText = (text: string, x: number, y: number, color: string) => {
+    if (isDuplicateFloat(floatingTextsRef.current, text, x, REFUSAL_TEXT.duplicateRadius)) return;
+    addFloatingText(text, x, y, color);
+  };
+
   const addFloatingText = (text: string, x: number, y: number, color: string) => {
     floatingTextsRef.current.push({
       id: Math.random(),
       text,
       x,
       y,
-      life: 1.0,
+      life: floatingTextLife(text.length),
       color
     });
   };
@@ -244,8 +462,8 @@ export default function App() {
       playSound(900, 0.2, 'triangle');
       addFloatingText('PARRIED!', defender.x, defender.y - 120, '#58a6ff');
       addLog('me', `${defender.c.name}: Point of Order! Parried ${attacker.c.name}.`);
-      defender.meter = Math.min(100, defender.meter + 25);
-      handleHit(defender, attacker, 14, 280, true);
+      defender.meter = Math.min(100, defender.meter + PARRY.meterGain);
+      handleHit(defender, attacker, PARRY.reflectDmg, 280, true);
       return;
     }
 
@@ -270,13 +488,25 @@ export default function App() {
     defender.seats = Math.max(0, defender.seats - finalDamage * 0.25);
 
     defender.vx = attacker.facing * baseKnockback * knockbackMultiplier;
-    defender.vy = Math.min(defender.vy, -130);
+    // Blocked hits slide the blocker back but must not launch them: the hop dropped the guard
+    // for ~0.14 s and let follow-up hits land at full damage.
+    if (!(defender.blocking && !unblockable)) {
+      defender.vy = Math.min(defender.vy, -130);
+    }
 
     attacker.comboCount = attacker.comboTimer > 0 ? attacker.comboCount + 1 : 1;
     attacker.comboTimer = 1.2;
 
-    spawnParticles(defender.x, defender.y - 60, 14, '#ffd700');
-    cameraShakeRef.current = Math.max(cameraShakeRef.current, 6);
+    // Blocks look and feel different from clean hits: blue sparks, less shake, grey number.
+    const blockedHit = defender.blocking && !unblockable;
+    const feel = hitFeel(finalDamage, blockedHit);
+    spawnParticles(defender.x, defender.y - 60, feel.sparkCount, feel.sparkColor);
+    cameraShakeRef.current = Math.max(cameraShakeRef.current, feel.shake);
+    addFloatingText(feel.label, defender.x + (Math.random() - 0.5) * 28, defender.y - 105, feel.numberColor);
+    if (feel.hitStop > 0 && hitStopCdRef.current <= 0) {
+      hitStopRef.current = Math.max(hitStopRef.current, feel.hitStop);
+      hitStopCdRef.current = HIT_FEEL.stopCooldown;
+    }
 
     if (attacker === combatantsRef.current?.p1) {
       updateCoach('Great strike! Keep attacking to charge your Super Meter to 100%!', 2);
@@ -287,24 +517,26 @@ export default function App() {
   const performStrike = (a: Combatant, b: Combatant) => {
     const isAirborne = a.y < FLOOR_Y - 2;
     const isForward = (a.facing > 0 && a.input.right) || (a.facing < 0 && a.input.left);
-    const attackType: 'punch' | 'cross' | 'kick' | 'dropkick' = a.attackType === 'kick'
-      ? 'kick'
-      : (isAirborne
-        ? 'dropkick'
-        : (isForward || (a.comboCount % 3 === 2) ? 'kick' : (a.comboCount % 2 === 1 ? 'cross' : 'punch')));
+    const attackType = pickStrikeType({
+      airborne: isAirborne,
+      forward: !!isForward,
+      wantKick: !!a.input.kick,
+      comboCount: a.comboCount
+    });
+    a.input.kick = 0;
 
     a.attackType = attackType;
     a.atk = attackType === 'kick' ? 0.35 : (attackType === 'dropkick' ? 0.38 : 0.26);
 
     if (attackType === 'kick' || attackType === 'dropkick') {
       playSound(380, 0.12, 'sawtooth', 0.08, -140);
-      addFloatingText('KICK! 💥', a.x + a.facing * 44, a.y - 70, '#ff9933');
+      addFloatingText('KICK!', a.x + a.facing * 44, a.y - 70, '#ff9933');
     } else {
       playSound(320, 0.07, 'square', 0.05, -100);
     }
 
     const range = (attackType === 'kick' || attackType === 'dropkick' ? 84 : 66) + (a.blast > 0 ? 32 : 0);
-    const dmg = attackType === 'kick' ? 9 : (attackType === 'dropkick' ? 10 : 7);
+    const dmg = attackType === 'kick' ? STRIKE_DAMAGE.kick : (attackType === 'dropkick' ? STRIKE_DAMAGE.dropkick : STRIKE_DAMAGE.punch);
     const knockback = attackType === 'kick' ? 270 : (attackType === 'dropkick' ? 320 : 210);
 
     if (Math.abs(a.x - b.x) < range && Math.abs(a.y - b.y) < 75) {
@@ -329,7 +561,7 @@ export default function App() {
         x: a.x + a.facing * 36,
         y: a.y - 62,
         vx: a.facing * 460,
-        dmg: 10,
+        dmg: MODI_WAVE.dmg,
         owner: a,
         lifetime: 2
       });
@@ -354,18 +586,20 @@ export default function App() {
         addFloatingText('MISS', a.x, a.y - 120, '#888888');
       }
     } else if (c.specialType === 'pull') {
-      a.whip = 0.3;
-      if (dist < 260) {
-        b.x = a.x + a.facing * 52;
-        handleHit(a, b, 9, 70);
+      // The hook now visibly pulls the opponent in (whip window), then lands its hit when it ends.
+      if (dist < MUFFLER_HOOK.range) {
+        a.whip = MUFFLER_HOOK.duration;
+        a.hookPending = true;
+      } else {
+        addFloatingText('MISS', a.x, a.y - 120, '#888888');
       }
     } else if (c.specialType === 'combo') {
       a.burstCount = 3;
       a.burstTimer = 0;
-      a.cdSpecial = 3;
+      a.cdSpecial = MAMATA_COMBO_COOLDOWN;
     } else if (c.specialType === 'counter') {
-      a.counter = 0.85;
-      a.cdSpecial = 3.2;
+      a.counter = PARRY.window;
+      a.cdSpecial = PARRY.cooldown;
     } else if (c.specialType === 'burn') {
       projectilesRef.current.push({
         id: Math.random(),
@@ -378,21 +612,34 @@ export default function App() {
         lifetime: 1.5
       });
     } else if (c.specialType === 'confuse') {
-      b.confused = 3.5;
+      b.confused = KADI_NINDA.confuseSeconds;
+      if (dist < KADI_NINDA.stunRange && !b.blocking) b.stun = Math.max(b.stun, KADI_NINDA.stunSeconds);
       addFloatingText('MOYE MOYE CONFUSION', b.x, b.y - 120, '#ff9933');
     } else if (c.specialType === 'heal_aura') {
-      a.hp = Math.min(100, a.hp + 12);
-      a.invincible = 1.2;
-      addFloatingText('MOHABBAT KI DUKAAN +12 HP', a.x, a.y - 120, '#58a6ff');
+      a.hp = Math.min(100, a.hp + RAHUL_HEAL.heal);
+      a.invincible = RAHUL_HEAL.invincible;
+      a.cdSpecial = RAHUL_HEAL.cooldown;
+      addFloatingText(`MOHABBAT KI DUKAAN +${RAHUL_HEAL.heal} HP`, a.x, a.y - 120, '#58a6ff');
     }
   };
 
   // Political pickup line (+8 Seats)
   const performPickupLine = (a: Combatant) => {
+    // Capped so tapping the key can no longer win the match on its own.
+    if (a.lineUses >= PICKUP_LINE.maxUses) {
+      addRefusalText('NO LINES LEFT', a.x, a.y - 120, '#9aa5b1');
+      return;
+    }
+    if (a.lineCd > 0) {
+      addRefusalText('LINE COOLING DOWN', a.x, a.y - 120, '#9aa5b1');
+      return;
+    }
+    a.lineCd = PICKUP_LINE.cooldown;
+    a.lineUses += 1;
     playSound(600, 0.15, 'sine', 0.08, 200);
-    addFloatingText(`💬 "${a.c.pickupLine}"`, a.x, a.y - 50, '#ffd700');
-    a.seats = Math.min(272, a.seats + 8);
-    addLog(a.isAI ? 'cpu' : 'me', `${a.c.name} recited a witty pickup line (+8 Seats)!`);
+    addFloatingText(`"${a.c.pickupLine}"`, a.x, a.y - 50, '#ffd700');
+    a.seats = Math.min(272, a.seats + PICKUP_LINE.seats);
+    addLog(a.isAI ? 'cpu' : 'me', `${a.c.name} recited a witty pickup line (+${PICKUP_LINE.seats} Seats, ${PICKUP_LINE.maxUses - a.lineUses} left)!`);
   };
 
   // Launch Cinematic Super Move
@@ -400,8 +647,11 @@ export default function App() {
     a.meter = 0;
     a.attackType = 'super';
     cinematicRef.current = { actor: a, target: b, elapsed: 0 };
+    setIsCutscene(true);
+    // The pad unmounts for the cutscene, so a held stick would never send its release: zero it now.
+    padRef.current = { p1: { dx: 0, dy: 0, block: false, jump: false }, p2: { dx: 0, dy: 0, block: false, jump: false } };
     // Deliver authentic politician voice with acoustic meme backing
-    speakPoliticianVoice(a.c.speechText, a.c.voicePitch, a.c.voiceRate, true, a.c.id);
+    speakPoliticianVoice(a.c.id);
     playSound(90, 0.6, 'sawtooth', 0.12, -30);
   };
 
@@ -409,11 +659,16 @@ export default function App() {
   const releaseSuperAbility = (a: Combatant, b: Combatant) => {
     const k = a.c.superType;
     const f = a.facing;
+    setIsCutscene(false);
+    stopVoice(VOICE.cutsceneFadeSeconds); // the clip is longer than the scene: fade it out instead of letting it run over the fight
     a.surge = 1.4;
     a.attackType = 'super';
     cameraShakeRef.current = 16;
     playSuperSound(k);
     addLog(a.isAI ? 'cpu' : 'me', `SUPER: ${a.c.name} unleashes ${a.c.superName}!`);
+    if ((k === 'train' || k === 'bulldozer') && a !== combatantsRef.current?.p1) {
+      updateCoach(`JUMP [${primaryLabel('p1', 'jump')}] over the train or bulldozer to dodge it!`, coachStepRef.current);
+    }
 
     if (k === 'train') {
       // Vande Bharat Express Bullet Train
@@ -431,18 +686,20 @@ export default function App() {
       });
     } else if (k === 'chain') {
       // Chanakya Constitutional Lockdown
-      b.freeze = 3.5;
-      handleHit(a, b, 14, 0, true);
+      b.freeze = SHAH_FREEZE_SECONDS;
+      handleHit(a, b, SHAH_CHAIN_DMG, 0, true);
       a.chain = 3;
     } else if (k === 'gst_blocks') {
       // Budget Deficit Stamp & GST Block Rain
-      a.rain = 2.4;
+      a.rain = SUPER_TICK.gst_blocks.duration;
       a.hp = Math.min(100, a.hp + 14);
       a.rainTimer = 0;
+      addFloatingText('GST RAIN +14 HP', a.x, a.y - 130, '#56d364');
     } else if (k === 'dharna') {
       // Dharna Electric Vortex & Broom Whirlwind
-      a.invincible = 4;
+      a.invincible = Math.min(SUPER_TICK.dharna.duration, DHARNA_INVINCIBLE_SECONDS);
       a.surge = 4;
+      a.rain = SUPER_TICK.dharna.duration;
       a.rainTimer = 0;
     } else if (k === 'khela_volley') {
       // Khela Hobe Football Volley
@@ -463,9 +720,9 @@ export default function App() {
     } else if (k === 'veto') {
       // Veto of Elders
       handleHit(a, b, 16, 160, true);
-      b.cdSpecial = 6;
+      b.cdSpecial = VETO.silenceSeconds;
       b.meter = 0;
-      b.stun = 1.4;
+      b.stun = VETO.stun;
       addFloatingText('SILENCED & VETOED', b.x, b.y - 130, '#ffffff');
     } else if (k === 'bulldozer') {
       // Yogi's JCB Bulldozer
@@ -484,7 +741,7 @@ export default function App() {
     } else if (k === 'aloo_gold') {
       // Rahul's Aloo-Sona Machine: Explosive 24K Gold Coin Shower
       for (let i = 0; i < 7; i++) {
-        setTimeout(() => {
+        schedule(i * 0.14, () => {
           projectilesRef.current.push({
             id: Math.random(),
             kind: 'gold_coin',
@@ -496,24 +753,24 @@ export default function App() {
             owner: a,
             lifetime: 3
           });
-        }, i * 140);
+        });
       }
     } else if (k === 'rafale') {
       // Rajnath's Moye-Moye Rafale Strike
-      for (let i = 0; i < 4; i++) {
-        setTimeout(() => {
+      for (let i = 0; i < RAFALE.missiles; i++) {
+        schedule((i * RAFALE.gapMs) / 1000, () => {
           projectilesRef.current.push({
             id: Math.random(),
             kind: 'missile',
-            x: b.x + (Math.random() - 0.5) * 160,
+            x: b.x + (Math.random() - 0.5) * 2 * RAFALE.spreadPx,
             y: -20,
             vx: 0,
             vy: 420,
-            dmg: 10,
+            dmg: RAFALE.dmg,
             owner: a,
             lifetime: 2
           });
-        }, i * 180);
+        });
       }
     }
   };
@@ -558,14 +815,33 @@ export default function App() {
     particlesRef.current = [];
     floatingTextsRef.current = [];
     cinematicRef.current = null;
+    setIsCutscene(false);
+    setVs(null);
     matchTimeRef.current = 60;
+    ghostBarsRef.current = {
+      p1: newGhostBar(combatantsRef.current.p1.hp),
+      p2: newGhostBar(combatantsRef.current.p2.hp)
+    };
     cameraShakeRef.current = 0;
     nextPowerUpSpawnRef.current = 3;
+    pauseReasonsRef.current.clear();
+    scheduledRef.current = [];
+    hitStopRef.current = 0;
+    hitStopCdRef.current = 0;
     isPausedRef.current = false;
+    resumeAllAudio();
+    stopAllVoices();
     setIsPaused(false);
     padRef.current = { p1: { dx: 0, dy: 0, block: false, jump: false }, p2: { dx: 0, dy: 0, block: false, jump: false } };
     lastAITimeRef.current = 0;
+    publishedBestRef.current = null;
+    decisionPublishedAtRef.current = 0;
+    lastAIJumpRef.current = -1e9;
     coachStepRef.current = 0;
+    shownTipsRef.current.clear();
+
+    // Drop keys buffered before the match (the Space/Enter that started it must not punch on frame 1)
+    justPressedRef.current = {};
 
     // Blur any active element so keyboard events go to window
     (document.activeElement as HTMLElement)?.blur();
@@ -573,26 +849,98 @@ export default function App() {
     setGameEnding(null);
     setGameState('play');
     startBattleMusic();
-    updateCoach('Rule 1: Move left/right with [A]/[D] or Virtual Joystick into debate range.', 1);
+    updateCoach(`Rule 1: Move left/right with [${primaryLabel('p1', 'left')}]/[${primaryLabel('p1', 'right')}] or Virtual Joystick into debate range.`, 1);
     addLog('me', `Parliamentary Session Commenced: ${p1Politician.name} vs ${p2Politician.name}.`);
     playSound(260, 0.3, 'triangle', 0.07, 200);
   };
 
   // Keyboard Event Listeners
+  // Versus card: remember when it opened (so the press that opened it cannot also skip it), then start the match by itself.
+  useEffect(() => {
+    if (vs?.phase === 'vs') vsOpenedAtRef.current = performance.now();
+  }, [vs?.phase]);
+  useEffect(() => {
+    if (!vs || vs.phase !== 'vs' || !vs.p2 || gameState !== 'menu') return;
+    const p1 = vs.p1;
+    const p2 = vs.p2;
+    const id = window.setTimeout(() => startMatch(p1, p2), VS.autoStartSeconds * 1000);
+    return () => window.clearTimeout(id);
+  }, [vs, gameState]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      // Arrow keys on a focused slider (the music volume) adjust the slider, not the fighters. Other keys still reach the game,
+      // so a slider left focused after a mouse drag does not break keyboard play.
+      const focused = e.target as HTMLElement | null;
+      if (focused && focused.tagName === 'INPUT' && (focused as HTMLInputElement).type === 'range' && e.code.startsWith('Arrow')) return;
       keyboardStateRef.current[e.code] = true;
-      justPressedRef.current[e.code] = true;
+      // Presses made while the match is held must not fire on resume.
+      if (!isPausedRef.current) justPressedRef.current[e.code] = true;
 
-      if (/Space|Arrow/.test(e.code)) {
+      // Pause: Esc always; P too, but only when P is not Player 2's special (single-player).
+      // Ignored while a modal (inspector / rulebook) is holding the match: those close themselves.
+      if (
+        gameState === 'play' &&
+        (e.code === PAUSE_CODES.always || (e.code === PAUSE_CODES.singlePlayerOnly && !is2PlayerMode)) &&
+        !pauseReasonsRef.current.has('inspector') &&
+        !pauseReasonsRef.current.has('rules')
+      ) {
+        e.preventDefault();
+        setPause('user', !pauseReasonsRef.current.has('user'));
+        return;
+      }
+
+      // Any key skips a super cutscene once it has played for a moment (modifier keys excepted).
+      if (gameState === 'play' && cinematicRef.current && !isPausedRef.current && !/^(Shift|Control|Alt|Meta)/.test(e.code)) {
+        cinematicRef.current.elapsed = cutsceneSkipTo(cinematicRef.current.elapsed);
+      }
+
+      // Only swallow Space/arrows while fighting, so Tab/Enter/Space keep working on buttons and modals.
+      if (gameState === 'play' && swallowedInMatch(e.code, is2PlayerMode)) {
         e.preventDefault();
       }
 
-      // Title screen quick-start
-      if (gameState === 'menu' && (e.code === 'Enter' || e.code === 'Space')) {
-        const p2 = POLITICIANS[(POLITICIANS.indexOf(selectedPolitician) + 3) % POLITICIANS.length];
-        startMatch(selectedPolitician, p2);
+      // Title screen quick-start: never while the intro or rulebook is open, and never when a
+      // button/link/input has focus (Enter on a map pin must not start a match with the old pick).
+      const target = e.target as HTMLElement | null;
+      const onControl = !!target && /^(BUTTON|A|INPUT|SELECT|TEXTAREA)$/.test(target.tagName);
+      // While the versus card is up it owns the keyboard: Esc goes back, Enter/Space start now (not while a button has focus,
+      // so Shuffle and Back keep working from the keyboard), everything else is ignored.
+      if (gameState === 'menu' && vs) {
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          setVs(null);
+        } else if (vs.phase === 'vs' && vs.p2 && !onControl && (e.code === 'Enter' || e.code === 'Space')) {
+          e.preventDefault();
+          if (vsMaySkip(performance.now() - vsOpenedAtRef.current, e.repeat, VS.inputGraceSeconds)) startMatch(vs.p1, vs.p2);
+        }
+        return;
+      }
+      // Left/Right on the map screen switch leader (silently: the voice only plays on a pin or chip tap, so holding an arrow can't stack clips).
+      // Fine while a button has focus; not while typing in a field. Wraps around the roster.
+      if (
+        gameState === 'menu' &&
+        !isLoadingIntro &&
+        !isRulebookOpen &&
+        (e.code === 'ArrowLeft' || e.code === 'ArrowRight') &&
+        !e.altKey && !e.ctrlKey && !e.metaKey &&
+        !(target && /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName))
+      ) {
+        e.preventDefault();
+        const nextId = stepRoster(POLITICIANS.map(q => q.id), selectedPolitician.id, e.code === 'ArrowRight' ? 1 : -1);
+        const next = POLITICIANS.find(q => q.id === nextId);
+        if (next) setSelectedPolitician(next);
+        return;
+      }
+      if (
+        gameState === 'menu' &&
+        !isLoadingIntro &&
+        !isRulebookOpen &&
+        !onControl &&
+        (e.code === 'Enter' || e.code === 'Space')
+      ) {
+        beginVersus();
       }
     };
 
@@ -606,12 +954,62 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [gameState, selectedPolitician]);
+  }, [gameState, selectedPolitician, isLoadingIntro, isRulebookOpen, is2PlayerMode, setPause, vs]);
+
+  // A tap on the arena skips a super cutscene too (taps on buttons, such as Pause, do not).
+  useEffect(() => {
+    if (gameState !== 'play') return;
+    const onTap = (e: PointerEvent) => {
+      const cin = cinematicRef.current;
+      if (!cin || isPausedRef.current) return;
+      if ((e.target as HTMLElement | null)?.closest?.('button, a, input, [role="dialog"]')) return;
+      cin.elapsed = cutsceneSkipTo(cin.elapsed);
+    };
+    window.addEventListener('pointerdown', onTap);
+    return () => window.removeEventListener('pointerdown', onTap);
+  }, [gameState]);
+
+  // Leaving the tab/window: auto-pause the match and drop held keys (their keyup never arrives).
+  useEffect(() => {
+    const dropKeys = () => {
+      keyboardStateRef.current = {};
+      justPressedRef.current = {};
+    };
+    const autoPause = () => {
+      dropKeys();
+      if (gameState === 'play') setPause('user', true); // needs a deliberate Resume
+    };
+    const onVisibility = () => {
+      if (document.hidden) autoPause();
+    };
+    window.addEventListener('blur', autoPause);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('blur', autoPause);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [gameState, setPause]);
 
   // Main 60 FPS Game Loop
   useEffect(() => {
     let animId: number;
     let lastTs = performance.now();
+
+    // Sparks and floating labels age the same way in a match and on the game-over screen.
+    const stepEffects = (dt: number) => {
+      particlesRef.current.forEach(pt => {
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        pt.vy += 700 * dt;
+        pt.life -= dt;
+      });
+      particlesRef.current = particlesRef.current.filter(pt => pt.life > 0);
+      floatingTextsRef.current.forEach(ft => {
+        ft.y -= 40 * dt;
+        ft.life -= dt;
+      });
+      floatingTextsRef.current = floatingTextsRef.current.filter(ft => ft.life > 0);
+    };
 
     const loop = (currentTs: number) => {
       const rawDt = (currentTs - lastTs) / 1000;
@@ -622,68 +1020,124 @@ export default function App() {
       const ctx = canvas?.getContext('2d');
 
       if (ctx && canvas && !isPausedRef.current) {
+        // Backing store follows what is actually shown (letterboxed size x device pixel ratio), so the
+        // stage stays sharp on retina phones and when the sidebar/window makes the canvas bigger than 800 px.
+        const renderScale = pickRenderScale(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio, STAGE_WIDTH, STAGE_HEIGHT);
+        prepareStageCanvas(canvas, ctx, renderScale);
+
         // Render Background
         ctx.save();
         if (cameraShakeRef.current > 0.3) {
+          const shakeNow = appliedShake(cameraShakeRef.current, prefersReducedMotion());
           ctx.translate(
-            (Math.random() - 0.5) * cameraShakeRef.current,
-            (Math.random() - 0.5) * cameraShakeRef.current
+            (Math.random() - 0.5) * shakeNow,
+            (Math.random() - 0.5) * shakeNow
           );
-          cameraShakeRef.current *= 0.85;
+          cameraShakeRef.current *= decayPerFrame(MOVE.shakeDecay, dt);
         }
-        ctx.drawImage(getChamberBackground(), 0, 0);
+        // F57: frame both fighters. Draw-only: hitboxes, input and rules stay in world coordinates, and the HUD
+        // and cutscenes are drawn after the matching restore, so they never zoom. Reduced motion keeps 1x.
+        {
+          const cam = cameraRef.current;
+          const live = (gameState === 'play' || gameState === 'over') && combatantsRef.current && !prefersReducedMotion();
+          const tz = live ? cameraTargetZoom(combatantsRef.current!.p1.x, combatantsRef.current!.p2.x, STAGE_WIDTH, CAMERA.fitMarginPx, CAMERA.maxZoom) : 1;
+          const tcx = live ? (combatantsRef.current!.p1.x + combatantsRef.current!.p2.x) / 2 : STAGE_WIDTH / 2;
+          cam.zoom = cameraEase(cam.zoom, tz, CAMERA.zoomRate, dt);
+          cam.cx = cameraEase(cam.cx, tcx, CAMERA.panRate, dt);
+          if (cam.zoom > 1.002) {
+            const t = cameraTransform(cam.zoom, cam.cx, STAGE_WIDTH, STAGE_HEIGHT);
+            ctx.translate(t.tx, t.ty);
+            ctx.scale(t.s, t.s);
+          }
+        }
+        ctx.drawImage(getChamberBackground(renderScale), 0, 0, STAGE_WIDTH, STAGE_HEIGHT);
 
-        if (gameState === 'play' && combatantsRef.current && !isPausedRef.current) {
+        if ((gameState === 'play' || gameState === 'over') && combatantsRef.current && !isPausedRef.current) {
           const { p1, p2 } = combatantsRef.current;
 
           // 1. Process Cinematic Cutscene if active
-          if (cinematicRef.current) {
+          if (gameState === 'over') {
+            // Decided: the fighters stay on stage behind the modal, but nothing simulates. Leftover sparks fade out
+            // and the ghost bars finish draining, so a KO doesn't leave a full amber bar behind an empty one.
+            stepEffects(dt);
+            ghostBarsRef.current = {
+              p1: stepGhostBar(ghostBarsRef.current.p1, p1.hp, dt, prefersReducedMotion()),
+              p2: stepGhostBar(ghostBarsRef.current.p2, p2.hp, dt, prefersReducedMotion())
+            };
+          } else if (cinematicRef.current) {
+            // Presses during a cutscene are for skipping it, never for fighting afterwards.
+            justPressedRef.current = {};
             cinematicRef.current.elapsed += dt;
-            if (cinematicRef.current.elapsed > 2.3) {
+            if (cinematicRef.current.elapsed > CUTSCENE_END) {
               const act = cinematicRef.current.actor;
               const tgt = cinematicRef.current.target;
               cinematicRef.current = null;
               releaseSuperAbility(act, tgt);
             }
+          } else if (hitStopRef.current > 0) {
+            // Hit-stop: the world holds for a few frames on impact (the stage keeps drawing).
+            hitStopRef.current -= dt;
+            hitStopCdRef.current -= dt;
           } else {
             // Normal Simulation
+            hitStopCdRef.current -= dt;
+            const timeBefore = matchTimeRef.current;
             matchTimeRef.current -= dt;
+            const tickFreq = clockTickFreq(timeBefore, matchTimeRef.current);
+            if (tickFreq !== null) playSound(tickFreq, 0.06, 'sine', CLOCK.tickVolume, 0);
+            tickScheduled(dt);
 
             // Player 1 Input Dispatch
             const pd1 = padRef.current.p1;
-            p1.input.left = keyboardStateRef.current.KeyA || pd1.dx < -0.25 ? 1 : 0;
-            p1.input.right = keyboardStateRef.current.KeyD || pd1.dx > 0.25 ? 1 : 0;
-            p1.input.block = keyboardStateRef.current.KeyS || pd1.block || pd1.dy > 0.65 ? 1 : 0;
-            p1.input.jump = keyboardStateRef.current.KeyW || pd1.jump || pd1.dy < -0.55 ? 1 : 0;
-            if (justPressedRef.current.KeyU || justPressedRef.current.KeyI) {
-              p1.attackType = 'kick';
+            const keysDown = keyboardStateRef.current;
+            const keysTapped = justPressedRef.current;
+            p1.input.left = isActive('p1', 'left', keysDown) || pd1.dx < -0.25 ? 1 : 0;
+            p1.input.right = isActive('p1', 'right', keysDown) || pd1.dx > 0.25 ? 1 : 0;
+            p1.input.block = isActive('p1', 'block', keysDown) || pd1.block || pd1.dy > 0.65 ? 1 : 0;
+            p1.input.jump = isActive('p1', 'jump', keysDown) || pd1.jump || pd1.dy < -0.55 ? 1 : 0;
+            if (isActive('p1', 'kick', keysTapped)) {
+              p1.input.kick = 1;
               p1.input.strike = 1;
-            } else if (justPressedRef.current.KeyJ || justPressedRef.current.Space) {
+            } else if (isActive('p1', 'strike', keysTapped)) {
               p1.input.strike = 1;
             }
-            if (justPressedRef.current.KeyK) p1.input.special = 1;
-            if (justPressedRef.current.KeyF) p1.input.pickupLine = 1;
-            if (justPressedRef.current.KeyQ || justPressedRef.current.KeyL) p1.input.superMove = 1;
+            if (isActive('p1', 'special', keysTapped)) p1.input.special = 1;
+            if (isActive('p1', 'line', keysTapped)) p1.input.pickupLine = 1;
+            if (isActive('p1', 'super', keysTapped)) p1.input.superMove = 1;
 
             // Player 2 / AI Input Dispatch
             if (is2PlayerMode) {
               const pd2 = padRef.current.p2;
-              p2.input.left = keyboardStateRef.current.ArrowLeft || pd2.dx < -0.25 ? 1 : 0;
-              p2.input.right = keyboardStateRef.current.ArrowRight || pd2.dx > 0.25 ? 1 : 0;
-              p2.input.block = keyboardStateRef.current.ArrowDown || pd2.block || pd2.dy > 0.65 ? 1 : 0;
-              p2.input.jump = keyboardStateRef.current.ArrowUp || pd2.jump || pd2.dy < -0.55 ? 1 : 0;
-              if (justPressedRef.current.Enter) p2.input.strike = 1;
-              if (justPressedRef.current.KeyP) p2.input.special = 1;
-              if (justPressedRef.current.KeyO) p2.input.superMove = 1;
+              p2.input.left = isActive('p2', 'left', keysDown) || pd2.dx < -0.25 ? 1 : 0;
+              p2.input.right = isActive('p2', 'right', keysDown) || pd2.dx > 0.25 ? 1 : 0;
+              p2.input.block = isActive('p2', 'block', keysDown) || pd2.block || pd2.dy > 0.65 ? 1 : 0;
+              p2.input.jump = isActive('p2', 'jump', keysDown) || pd2.jump || pd2.dy < -0.55 ? 1 : 0;
+              if (isActive('p2', 'kick', keysTapped)) {
+                p2.input.kick = 1;
+                p2.input.strike = 1;
+              } else if (isActive('p2', 'strike', keysTapped)) {
+                p2.input.strike = 1;
+              }
+              if (isActive('p2', 'special', keysTapped)) p2.input.special = 1;
+              if (isActive('p2', 'line', keysTapped)) p2.input.pickupLine = 1;
+              if (isActive('p2', 'super', keysTapped)) p2.input.superMove = 1;
             } else {
               // AI Decision Loop every 0.22s
-              if (currentTs - lastAITimeRef.current > 220) {
+              if (currentTs - lastAITimeRef.current > 140) {
                 lastAITimeRef.current = currentTs;
-                const decision = calculateAIUtilities(p2, p1, powerUpsRef.current);
-                setActiveDecision(decision);
-                setActiveDecisionTreeAction(decision.best);
-                setTreeUtilityScores(decision.utilityMap);
-                p2.thought = `${decision.best} (+${Math.round(decision.utilityMap[decision.best] ?? 0)})`;
+                const decision = calculateAIUtilities(p2, p1, powerUpsRef.current, lastAIActionRef.current || undefined);
+                latestDecisionRef.current = decision;
+                if (shouldPublishDecision({
+                  visible: decisionVisibleRef.current,
+                  best: decision.best,
+                  prevBest: publishedBestRef.current,
+                  nowMs: currentTs,
+                  lastPublishMs: decisionPublishedAtRef.current,
+                  refreshMs: DECISION_UI.refreshMs
+                })) {
+                  publishDecision(decision, currentTs);
+                }
+                p2.thought = `${actionLabel(decision.best)} (${formatEv(decision.utilityMap[decision.best] ?? 0)})`;
 
                 // Map chosen action to AI physical inputs
                 p2.input.left = p2.input.right = p2.input.jump = p2.input.block = 0;
@@ -699,24 +1153,52 @@ export default function App() {
                 else if (decision.best === 'Retreat') navigateTo(p2.x * 2 - p1.x);
                 else if (decision.best === 'Block') p2.input.block = 1;
                 else if (decision.best === 'Podium') navigateTo(400);
+                else if (decision.best === 'Pickup') {
+                  // Walk to the nearest uncollected item (this branch was missing: the CPU used to stand still)
+                  let nearest: { x: number } | null = null;
+                  let nearestDist = Infinity;
+                  for (const pu of powerUpsRef.current) {
+                    if (pu.collected) continue;
+                    const dd = Math.abs(pu.x - p2.x);
+                    if (dd < nearestDist) {
+                      nearestDist = dd;
+                      nearest = pu;
+                    }
+                  }
+                  if (nearest) navigateTo(nearest.x);
+                }
+
+                // Jump over an incoming train or bulldozer. Floor-level supers are dodged by being
+                // airborne, and each has a window that keeps the jump timed to the projectile:
+                // train 200-440 px away, bulldozer 150-300 px away. At most one jump per 0.8 s.
+                if (currentTs - lastAIJumpRef.current > 800) {
+                  const incoming = projectilesRef.current.some(pr => {
+                    if (pr.owner !== p1 || (pr.kind !== 'train' && pr.kind !== 'bulldozer')) return false;
+                    const approaching = (pr.x < p2.x && pr.vx > 0) || (pr.x > p2.x && pr.vx < 0);
+                    const gap = Math.abs(pr.x - p2.x);
+                    return approaching && (pr.kind === 'train' ? gap > 200 && gap < 440 : gap > 150 && gap < 300);
+                  });
+                  if (incoming && Math.random() < AI_DODGE_CHANCE) {
+                    p2.input.jump = 1;
+                    lastAIJumpRef.current = currentTs;
+                  }
+                }
 
                 if (decision.best !== lastAIActionRef.current) {
                   lastAIActionRef.current = decision.best;
                   addLog(
                     'cpu',
-                    `[AI ${p2.c.name.split(' ')[0]}] ${decision.best.toUpperCase()}: ${decision.why}`
+                    `[AI ${p2.c.name.split(' ')[0]}] ${actionLabel(decision.best).toUpperCase()}: ${decision.why}`
                   );
                 }
               }
             }
 
             // Update Combatants Physics & Actions
-            [
-              { me: p1, opp: p2 },
-              { me: p2, opp: p1 }
-            ].forEach(({ me, opp }) => {
+            updateOrder({ me: p1, opp: p2 }, { me: p2, opp: p1 }, simTickRef.current++).forEach(({ me, opp }) => {
               me.facing = opp.x > me.x ? 1 : -1;
               me.cdSpecial = Math.max(0, me.cdSpecial - dt);
+              me.lineCd = Math.max(0, me.lineCd - dt);
 
               // Cooldown timer decays
               const decayProps = [
@@ -738,37 +1220,108 @@ export default function App() {
                 if (me[k] > 0) me[k] = Math.max(0, me[k] - dt);
               });
 
+              // Burst combo tick (Mamata's special): 3 quick hits, then actions unlock again.
+              // Without this tick burstCount never reached 0 and locked her out for the match.
+              if (me.burstCount > 0) {
+                if (me.stun > 0 || me.freeze > 0 || me.hp <= 0) {
+                  me.burstCount = 0;
+                  me.burstTimer = 0;
+                } else {
+                  me.burstTimer -= dt;
+                  if (me.burstTimer <= 0) {
+                    me.burstTimer = 0.18;
+                    me.burstCount -= 1;
+                    me.attackType = 'punch';
+                    me.atk = 0.16;
+                    if (Math.abs(opp.x - me.x) < 90) {
+                      handleHit(me, opp, 6, 40);
+                    } else {
+                      addFloatingText('MISS', me.x, me.y - 120, '#888888');
+                    }
+                  }
+                }
+              }
+
+              // Muffler Hook: ease the opponent toward Kejriwal, then land the hit when the whip window ends.
+              if (me.hookPending) {
+                const hookX = Math.max(30, Math.min(STAGE_WIDTH - 30, me.x + me.facing * 52));
+                if (me.whip > 0) {
+                  opp.x += (hookX - opp.x) * Math.min(1, dt * 18);
+                  opp.vx = 0;
+                } else {
+                  me.hookPending = false;
+                  opp.x = hookX;
+                  handleHit(me, opp, MUFFLER_HOOK.dmg, MUFFLER_HOOK.knockback);
+                }
+              }
+
+              // Damage-over-time supers (Sitharaman's GST rain, Kejriwal's Dharna vortex)
+              if (me.rain > 0 && opp.hp > 0) {
+                me.rainTimer -= dt;
+                if (me.rainTimer <= 0) {
+                  if (me.c.superType === 'gst_blocks') {
+                    me.rainTimer = SUPER_TICK.gst_blocks.interval;
+                    handleHit(me, opp, SUPER_TICK.gst_blocks.dmg, SUPER_TICK.gst_blocks.knockback);
+                  } else if (me.c.superType === 'dharna') {
+                    me.rainTimer = SUPER_TICK.dharna.interval;
+                    const gap = Math.abs(opp.x - me.x);
+                    if (gap < SUPER_TICK.dharna.range) {
+                      const step = Math.min(SUPER_TICK.dharna.pull, Math.max(0, gap - 44));
+                      opp.x += (me.x > opp.x ? 1 : -1) * step;
+                      handleHit(me, opp, SUPER_TICK.dharna.dmg, 0);
+                    }
+                  } else {
+                    me.rainTimer = 0.5;
+                  }
+                }
+              }
+
               const onGround = me.y >= FLOOR_Y;
               me.blocking = !!(me.input.block && onGround && !me.atk && me.stun <= 0 && me.freeze <= 0);
 
               if (me.stun <= 0 && me.freeze <= 0) {
-                const dir = (me.input.right - me.input.left) * (me.confused > 0 ? -1 : 1);
-                const speedMult = SPEED_FACTORS[me.c.specialType] || 1.0;
-                const walkSpeed = speedMult * 230;
-
-                if (me.blocking) me.vx *= 0.8;
-                else if (dir !== 0) me.vx = dir * walkSpeed;
-                else me.vx *= 0.8;
-
                 if (me.input.jump && onGround) {
-                  me.vy = -650;
+                  me.vy = -MOVE.jumpSpeed;
                   playSound(400, 0.1, 'triangle', 0.04, 200);
                 }
 
-                if (!me.atk && me.burstCount <= 0) {
-                  if (me.input.strike) performStrike(me, opp);
-                  else if (me.input.special && me.cdSpecial <= 0) performSpecial(me, opp);
-                  else if (me.input.pickupLine) performPickupLine(me);
-                  else if (me.input.superMove && me.meter >= 100) triggerSuperMove(me, opp);
+                // A press made during an attack is kept for a moment and fires when the fighter is free.
+                // Humans only: the CPU's timing was tuned without a buffer.
+                const act = bufferStep(me.input, me.buffer, !!me.atk || me.burstCount > 0, dt);
+                me.buffer = me.isAI ? null : act.buffer;
+                if (act.fire === 'strike') {
+                  me.input.kick = act.kick;
+                  performStrike(me, opp);
+                } else if (act.fire === 'special') {
+                  if (me.cdSpecial <= 0) performSpecial(me, opp);
+                } else if (act.fire === 'pickupLine') {
+                  performPickupLine(me);
+                } else if (act.fire === 'superMove' && me.meter >= 100) {
+                  if (superInRange(me, opp)) triggerSuperMove(me, opp);
+                  else addFloatingText('TOO FAR', me.x, me.y - 120, '#9aa5b1');
                 }
               } else {
-                me.vx *= 0.9;
+                me.buffer = null; // stunned or frozen: a queued press does not survive the hit
               }
 
-              // Apply Gravity & Floor Constraint
-              me.vy += 1800 * dt;
-              me.x += me.vx * dt;
-              me.y += me.vy * dt;
+              // Physics phase (after walk/jump impulses): friction, air steering, gravity, then trapezoid
+              // integration, so the same kick slides the same distance and a jump is the same height at any fps.
+              {
+                const locked = me.stun > 0 || me.freeze > 0;
+                const dirSigned = (me.input.right - me.input.left) * (me.confused > 0 ? -1 : 1);
+                const hz = stepHorizontal(me.vx, {
+                  onGround,
+                  dir: locked ? 0 : dirSigned,
+                  walkSpeed: (SPEED_FACTORS[me.c.specialType] || 1.0) * 230,
+                  blocking: me.blocking,
+                  locked
+                }, dt);
+                const vyBefore = me.vy;
+                me.vy += MOVE.gravity * dt;
+                me.x += hz.avg * dt;
+                me.vx = hz.vx;
+                me.y = integrate(me.y, vyBefore, me.vy, dt);
+              }
               if (me.y > FLOOR_Y) {
                 me.y = FLOOR_Y;
                 me.vy = 0;
@@ -784,8 +1337,14 @@ export default function App() {
               }
 
               // Clear one-shot action inputs
-              me.input.strike = me.input.special = me.input.superMove = me.input.pickupLine = 0;
+              me.input.strike = me.input.special = me.input.superMove = me.input.pickupLine = me.input.kick = 0;
             });
+
+            // Grounded fighters are solid: they can no longer walk through each other (airborne ones pass over).
+            {
+              const bothGrounded = p1.y >= FLOOR_Y - 0.5 && p2.y >= FLOOR_Y - 0.5;
+              [p1.x, p2.x] = separateFighters(p1.x, p2.x, bothGrounded, dt);
+            }
 
             // Clear justPressed buffer
             justPressedRef.current = {};
@@ -847,7 +1406,7 @@ export default function App() {
                   target,
                   p.dmg,
                   p.kind === 'train' || p.kind === 'bulldozer' ? 700 : 260,
-                  p.kind === 'train' || p.kind === 'ball' || p.kind === 'gold_coin'
+                  p.kind === 'train' || p.kind === 'ball'
                 );
                 if (p.hitOnce) p.hasHit = true;
                 else p.lifetime = 0;
@@ -856,20 +1415,13 @@ export default function App() {
             projectilesRef.current = projectilesRef.current.filter(p => p.lifetime > 0);
 
             // Update Particles
-            particlesRef.current.forEach(pt => {
-              pt.x += pt.vx * dt;
-              pt.y += pt.vy * dt;
-              pt.vy += 700 * dt;
-              pt.life -= dt;
-            });
-            particlesRef.current = particlesRef.current.filter(pt => pt.life > 0);
+            stepEffects(dt);
 
-            // Update Floating Combat Texts
-            floatingTextsRef.current.forEach(ft => {
-              ft.y -= 40 * dt;
-              ft.life -= dt;
-            });
-            floatingTextsRef.current = floatingTextsRef.current.filter(ft => ft.life > 0);
+            // Ghost health bars trail the real HP (F24)
+            ghostBarsRef.current = {
+              p1: stepGhostBar(ghostBarsRef.current.p1, p1.hp, dt, prefersReducedMotion()),
+              p2: stepGhostBar(ghostBarsRef.current.p2, p2.hp, dt, prefersReducedMotion())
+            };
 
             // Check Super Meter for P1
             setIsSuperReadyP1(p1.meter >= 100);
@@ -880,7 +1432,10 @@ export default function App() {
             if (ending) {
               setGameEnding(ending);
               setGameState('over');
+              scheduledRef.current = [];
+              projectilesRef.current = []; // no frozen train or bulldozer hanging in the air behind the modal
               stopBattleMusic();
+              stopAllVoices();
             }
           }
 
@@ -909,13 +1464,14 @@ export default function App() {
             ctx.ellipse(combatant.x, FLOOR_Y + 4, 26, 6, 0, 0, TAU);
             ctx.fill();
 
-            if (combatant.invincible > 0 && Math.floor(currentTs * 0.02) % 2) {
-              ctx.globalAlpha = 0.6;
+            if (combatant.invincible > 0) {
+              // Smooth fade (not a 10 Hz hard flip); one steady dim look under reduced motion.
+              ctx.globalAlpha = invincibleAlpha(currentTs * 0.001, prefersReducedMotion());
             }
 
             const isSuperActive = (cinematicRef.current?.actor === combatant) || combatant.surge > 0;
             const superProg = cinematicRef.current?.actor === combatant
-              ? Math.min(1, cinematicRef.current.elapsed / 2.3)
+              ? Math.min(1, cinematicRef.current.elapsed / CUTSCENE_END)
               : (combatant.surge > 0 ? 1 - combatant.surge / 1.4 : 0);
             const atkDur = combatant.attackType === 'kick' ? 0.35 : (combatant.attackType === 'dropkick' ? 0.38 : 0.26);
 
@@ -940,28 +1496,30 @@ export default function App() {
             ctx.globalAlpha = 1.0;
 
             // AI Thought Bubble
-            if (combatant.isAI && combatant.thought) {
+            if (gameState === 'play' && combatant.isAI && combatant.thought) {
               ctx.save();
-              ctx.translate(combatant.x, combatant.y - 110);
+              ctx.font = `bold ${HUD_TEXT.thoughtFont}px sans-serif`;
+              const label = `AI: ${combatant.thought}`;
+              const box = thoughtBubbleBox(ctx.measureText(label).width, combatant.x, STAGE_WIDTH);
+              const top = combatant.y - 110 - box.height;
               ctx.fillStyle = 'rgba(13, 24, 18, 0.9)';
               ctx.strokeStyle = '#ffd700';
               ctx.lineWidth = 1.5;
               ctx.beginPath();
-              ctx.roundRect(-42, -18, 84, 18, 6);
+              ctx.roundRect(box.left, top, box.width, box.height, 6);
               ctx.fill();
               ctx.stroke();
               // Pointer
               ctx.beginPath();
-              ctx.moveTo(-4, 0);
-              ctx.lineTo(0, 4);
-              ctx.lineTo(4, 0);
+              ctx.moveTo(box.pointerX - 4, top + box.height);
+              ctx.lineTo(box.pointerX, top + box.height + 4);
+              ctx.lineTo(box.pointerX + 4, top + box.height);
               ctx.fillStyle = '#ffd700';
               ctx.fill();
               // Text
               ctx.fillStyle = '#ffffff';
-              ctx.font = 'bold 9.5px sans-serif';
               ctx.textAlign = 'center';
-              ctx.fillText(`💡 ${combatant.thought}`, 0, -6);
+              ctx.fillText(label, box.left + box.width / 2, top + box.height - 6.5);
               ctx.restore();
             }
 
@@ -999,18 +1557,29 @@ export default function App() {
           });
           ctx.globalAlpha = 1.0;
 
-          // Render Floating Combat Texts
+          // Render Floating Combat Texts: wrapped, kept on-stage, outlined
+          ctx.font = '700 14px Georgia, serif';
+          ctx.textAlign = 'center';
+          ctx.lineJoin = 'round';
           floatingTextsRef.current.forEach(ft => {
+            const { lines, x } = layoutFloatingText(l => ctx.measureText(l).width, ft.text, ft.x, STAGE_WIDTH);
             ctx.globalAlpha = Math.min(1, ft.life * 2);
             ctx.fillStyle = ft.color;
             ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 4;
-            ctx.font = '700 14px Georgia, serif';
-            ctx.textAlign = 'center';
-            ctx.strokeText(ft.text, ft.x, ft.y);
-            ctx.fillText(ft.text, ft.x, ft.y);
+            ctx.lineWidth = FLOAT_TEXT.outline;
+            lines.forEach((line, i) => {
+              const ly = ft.y + i * FLOAT_TEXT.lineHeight;
+              ctx.strokeText(line, x, ly);
+              ctx.fillText(line, x, ly);
+            });
           });
           ctx.globalAlpha = 1.0;
+          ctx.lineJoin = 'miter';
+
+          // The camera shake belongs to the arena, not to the HUD: drop it here (restore), then open a
+          // fresh save so the frame's closing restore below still balances.
+          ctx.restore();
+          ctx.save();
 
           // In-Game Live HUD
           [
@@ -1030,6 +1599,12 @@ export default function App() {
             // Health Bar
             ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
             ctx.fillRect(barX - 2, 24, 304, 17);
+            const ghost = ghostBarsRef.current[isRight ? 'p2' : 'p1'];
+            if (ghost.value > p.hp) {
+              const ghostWidth = 300 * Math.min(1, ghost.value / 100);
+              ctx.fillStyle = GHOST_BAR.color;
+              ctx.fillRect(isRight ? barX + 300 - ghostWidth : barX, 26, ghostWidth, 13);
+            }
             ctx.fillStyle = p.hp < 30 ? '#e63946' : '#2ea043';
             const healthWidth = 300 * Math.max(0, p.hp / 100);
             ctx.fillRect(isRight ? barX + 300 - healthWidth : barX, 26, healthWidth, 13);
@@ -1042,10 +1617,10 @@ export default function App() {
             ctx.fillRect(isRight ? barX + 300 - meterWidth : barX, 45, meterWidth, 5);
 
             // Seats Readout
-            ctx.font = 'bold 11px sans-serif';
+            ctx.font = `bold ${HUD_TEXT.seatsFont}px sans-serif`;
             ctx.fillStyle = '#ffd700';
             ctx.fillText(
-              `Seats: ${Math.round(p.seats)}/272 ${p.meter >= 100 ? ' ★ SUPER READY [Q]' : ''}`,
+              `Seats: ${Math.round(p.seats)}/272${p.meter >= 100 ? `  ${superReadyLabel(isRight, is2PlayerMode)}` : ''}`,
               isRight ? STAGE_WIDTH - 12 : 12,
               66
             );
@@ -1058,15 +1633,25 @@ export default function App() {
             }
           });
 
-          // Central Zero-Hour Clock
+          // Central Zero-Hour Clock: red and pulsing in the last seconds (F24)
+          const clock = clockLook(matchTimeRef.current, prefersReducedMotion());
+          ctx.save();
+          ctx.translate(STAGE_WIDTH / 2, 30);
+          ctx.scale(clock.scale, clock.scale);
           ctx.textAlign = 'center';
           ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
           ctx.beginPath();
-          ctx.arc(STAGE_WIDTH / 2, 30, 22, 0, TAU);
+          ctx.arc(0, 0, 22, 0, TAU);
           ctx.fill();
-          ctx.fillStyle = '#f5eedb';
+          if (clock.urgent) {
+            ctx.strokeStyle = clock.color;
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+          }
+          ctx.fillStyle = clock.color;
           ctx.font = '800 18px monospace';
-          ctx.fillText(`${Math.max(0, Math.ceil(matchTimeRef.current))}`, STAGE_WIDTH / 2, 37);
+          ctx.fillText(`${Math.max(0, Math.ceil(matchTimeRef.current))}`, 0, 7);
+          ctx.restore();
 
           // Fullscreen Dramatic Super Cutscene Overlay
           if (cinematicRef.current) {
@@ -1081,7 +1666,7 @@ export default function App() {
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [gameState, is2PlayerMode, addLog, updateCoach]);
+  }, [gameState, is2PlayerMode, addLog, updateCoach, publishDecision]);
 
   // Render Speaker Mascot in Sidebar
   useEffect(() => {
@@ -1124,15 +1709,56 @@ export default function App() {
     if (!combatantsRef.current || isPausedRef.current || cinematicRef.current) return;
     const me = player === 1 ? combatantsRef.current.p1 : combatantsRef.current.p2;
     if (action === 'strike') me.input.strike = 1;
+    else if (action === 'kick') { me.input.kick = 1; me.input.strike = 1; }
     else if (action === 'special') me.input.special = 1;
     else if (action === 'line') me.input.pickupLine = 1;
     else if (action === 'super') me.input.superMove = 1;
   };
 
-  const togglePause = () => {
-    const next = !isPausedRef.current;
-    isPausedRef.current = next;
-    setIsPaused(next);
+  // Start pressed on the map: single-player shows a random opponent for a moment; 2-Player lets Player 2 pick first.
+  const beginVersus = () => {
+    if (vs) return;
+    if (is2PlayerMode) {
+      setVs({ phase: 'pick', p1: selectedPolitician, p2: null });
+      return;
+    }
+    const id = pickOpponent(POLITICIANS.map((q: Politician) => q.id), selectedPolitician.id, Math.random);
+    setVs({ phase: 'vs', p1: selectedPolitician, p2: POLITICIANS.find((q: Politician) => q.id === id) || POLITICIANS[0] });
+  };
+  const skipVersus = () => {
+    if (!vs || vs.phase !== 'vs' || !vs.p2) return;
+    if (vsMaySkip(performance.now() - vsOpenedAtRef.current, false, VS.inputGraceSeconds)) startMatch(vs.p1, vs.p2);
+  };
+
+  const leaveToMap = () => {
+    pauseReasonsRef.current.clear();
+    scheduledRef.current = [];
+    cinematicRef.current = null;
+    setIsCutscene(false);
+    isPausedRef.current = false;
+    setIsPaused(false);
+    resumeAllAudio(); // lift the global audio hold, then cut everything
+    stopBattleMusic();
+    stopAllVoices();
+    setIsMobileTelemetryOpen(false); // a drawer left open must not reappear on the next match
+    setVs(null);
+    setGameState('menu');
+  };
+
+  const togglePause = () => setPause('user', !pauseReasonsRef.current.has('user'));
+
+  const openRulebook = () => {
+    if (gameState === 'play') setPause('rules', true);
+    setIsRulebookOpen(true);
+  };
+  const drawerRef = useRef<HTMLElement | null>(null);
+  // The telemetry panel is a dialog only in its phone form (a slide-in drawer over the arena); on desktop it is a plain sidebar.
+  const drawerIsDialog = isMobileTelemetryOpen && gameState !== 'menu' && viewportDims.w < 1024;
+  useModalA11y(drawerRef, { active: drawerIsDialog, onClose: () => setIsMobileTelemetryOpen(false) });
+
+  const closeRulebook = () => {
+    setPause('rules', false);
+    setIsRulebookOpen(false);
   };
 
   const containerStyle: React.CSSProperties = isForceRotated
@@ -1159,12 +1785,13 @@ export default function App() {
         isForceRotated ? 'force-landscape-container' : 'h-[100dvh] w-screen'
       }`}
     >
+      <h1 className="sr-only">Battle of 272 Parliament</h1>
       {/* Humorous Parliamentary Boot / Loading Intro Screen */}
       {isLoadingIntro && (
-        <IntroLoadingScreen onFinish={() => setIsLoadingIntro(false)} />
+        <IntroLoadingScreen onFinish={() => setIsLoadingIntro(false)} touchFirst={isTouchPrimary} />
       )}
       {/* Left Stage Viewport */}
-      <div className="relative flex-1 flex items-center justify-center bg-[#030705] overflow-hidden min-w-0 h-full w-full">
+      <div ref={stageBoxRef} className="relative flex-1 flex items-center justify-center bg-[#030705] overflow-hidden min-w-0 h-full w-full">
         <canvas
           ref={canvasRef}
           width={STAGE_WIDTH}
@@ -1177,12 +1804,15 @@ export default function App() {
           <button
             type="button"
             onClick={() => setIsMobileTelemetryOpen(true)}
-            className="absolute hud-tl z-40 px-3 py-1.5 rounded-full glass border border-[#ffd700] text-[#ffd700] text-xs font-bold shadow-xl flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all lg:hidden"
+            className={`absolute hud-tl z-40 rounded-full glass border border-[#ffd700] text-[#ffd700] text-xs font-bold shadow-xl flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all lg:hidden ${
+              phoneHud.isShort ? 'justify-center' : 'px-3 py-1.5'
+            }`}
+            style={phoneHud.isShort ? { top: `max(${phoneHud.leftTop}px, var(--sa-top))`, width: PHONE_HUD.button, height: PHONE_HUD.button } : undefined}
             aria-label="Open AI Telemetry Console"
           >
-            <Brain size={14} className="text-[#56d364]" />
-            <span>AI Telemetry</span>
-            <span className="w-2 h-2 rounded-full bg-[#56d364] animate-pulse" />
+            <Brain size={phoneHud.isShort ? 18 : 14} className="text-[#56d364]" />
+            {!phoneHud.isShort && <span>AI Telemetry</span>}
+            {!phoneHud.isShort && <span className="w-2 h-2 rounded-full bg-[#56d364] animate-pulse" />}
           </button>
         )}
 
@@ -1193,6 +1823,7 @@ export default function App() {
             onClick={() => setIsDesktopSidebarOpen(prev => !prev)}
             title={isDesktopSidebarOpen ? 'Enter Theater Mode (Hide Sidebar)' : 'Show Speaker AI Sidebar'}
             className="absolute hud-tl z-40 px-3 py-1.5 rounded-full glass border border-[#1e3327] hover:border-[#ffd700]/70 text-[#8ea396] hover:text-white text-xs font-bold shadow-xl hidden lg:flex items-center gap-1.5 active:scale-95 hover:scale-105 transition-all"
+            style={phoneHud.isShort ? { top: `max(${phoneHud.leftTop}px, var(--sa-top))` } : undefined}
           >
             {isDesktopSidebarOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
             <span>{isDesktopSidebarOpen ? 'Theater View' : 'Speaker AI'}</span>
@@ -1202,22 +1833,27 @@ export default function App() {
         {/* Quick Orientation / Landscape Rotation + Fullscreen buttons */}
         {gameState === 'play' && (
           <>
-            <button
-              type="button"
-              onClick={toggleRotate}
-              title="Toggle 90° Landscape Rotation"
-              className="absolute hud-tr-2 z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ff9933] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
-              aria-label="Rotate View"
-            >
-              <RotateCw size={17} />
-            </button>
+            {isTouchPrimary && (
+              <button
+                type="button"
+                onClick={toggleRotate}
+                title="Toggle 90° Landscape Rotation"
+                className="absolute hud-tr-2 z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ff9933] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
+                style={phoneHud.isShort ? { top: `max(${phoneHud.stackTops[1]}px, var(--sa-top))`, right: 'max(0.5rem, var(--sa-right))' } : undefined}
+                aria-label="Rotate View"
+              >
+                <RotateCw size={17} />
+              </button>
+            )}
             {canFullscreen() && (
               <button
                 type="button"
                 onClick={toggleFullscreen}
                 title={isFs ? 'Exit Fullscreen' : 'Fullscreen'}
                 className="absolute z-40 w-10 h-10 rounded-full glass border border-[#ffd700]/50 text-[#ffd700] flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl"
-                style={{ top: 'max(0.5rem, var(--sa-top))', right: 'calc(max(0.5rem, var(--sa-right)) + 6rem)' }}
+                style={phoneHud.isShort
+                  ? { top: `max(${phoneHud.stackTops[isTouchPrimary ? 2 : 1]}px, var(--sa-top))`, right: 'max(0.5rem, var(--sa-right))' }
+                  : { top: 'max(0.5rem, var(--sa-top))', right: `calc(max(0.5rem, var(--sa-right)) + ${isTouchPrimary ? 6 : 3}rem)` }}
                 aria-label={isFs ? 'Exit Fullscreen' : 'Enter Fullscreen'}
               >
                 <Maximize2 size={16} />
@@ -1226,19 +1862,33 @@ export default function App() {
           </>
         )}
 
-        {/* Contextual Rule Coach Banner */}
-        {coachTip && isCoachOn && gameState === 'play' && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 glass border-2 border-[#ffd700] rounded-full px-4 py-1.5 shadow-2xl flex items-center gap-2.5 z-30 max-w-[90%] animate-in fade-in slide-in-from-top duration-300">
-            <span className="bg-[#ffd700] text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
-              <GraduationCap size={11} /> RULE COACH
-            </span>
-            <span className="text-xs font-semibold text-white truncate">{coachTip}</span>
+        {/* Contextual Rule Coach Banner (short screens: one line just below the HUD strip, gone after a few seconds) */}
+        {coachTip && isCoachOn && gameState === 'play' && !isCutscene && (
+          <div
+            data-testid="rule-coach"
+            className={`absolute left-1/2 -translate-x-1/2 glass border-2 border-[#ffd700] rounded-full shadow-2xl flex items-center z-30 animate-in fade-in duration-300 ${
+              phoneHud.isShort ? 'gap-1.5 pl-3 pr-1 py-0.5' : 'top-3 gap-2.5 px-4 py-1.5 max-w-[90%] slide-in-from-top'
+            }`}
+            style={phoneHud.isShort
+              ? { top: `max(${phoneHud.coachTop}px, var(--sa-top))`, maxWidth: phoneHud.coachMaxWidth }
+              : undefined}
+          >
+            {phoneHud.isShort
+              ? <GraduationCap size={14} className="text-[#ffd700] shrink-0" aria-label="Rule Coach" />
+              : (
+                <span className="bg-[#ffd700] text-black text-[11px] font-black px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                  <GraduationCap size={11} /> RULE COACH
+                </span>
+              )}
+            <span className={`font-semibold text-white truncate ${phoneHud.isShort ? 'text-[11px] whitespace-nowrap' : 'text-xs'}`}>{coachTip}</span>
             <button
               type="button"
               onClick={() => setCoachTip(null)}
-              className="text-[#8ea396] hover:text-white font-bold text-xs ml-1 hover:bg-white/10 rounded-full p-0.5 transition"
+              className="text-[#8ea396] hover:text-white font-bold hover:bg-white/10 rounded-full transition flex items-center justify-center shrink-0"
+              style={{ width: PHONE_HUD.coachDismissSize, height: PHONE_HUD.coachDismissSize }}
+              aria-label="Dismiss tip"
             >
-              <X size={12} />
+              <X size={14} />
             </button>
           </div>
         )}
@@ -1249,7 +1899,7 @@ export default function App() {
             <VirtualGamepad
               player={1}
               variant={is2PlayerMode ? 'left' : 'split'}
-              isVisible={isGamepadVisible}
+              isVisible={isGamepadVisible && !isCutscene}
               isSuperReady={isSuperReadyP1}
               isForceRotated={isForceRotated}
               onMove={(dx, dy) => { padRef.current.p1.dx = dx; padRef.current.p1.dy = dy; }}
@@ -1260,7 +1910,7 @@ export default function App() {
               <VirtualGamepad
                 player={2}
                 variant="right"
-                isVisible={isGamepadVisible}
+                isVisible={isGamepadVisible && !isCutscene}
                 isSuperReady={isSuperReadyP2}
                 isForceRotated={isForceRotated}
                 onMove={(dx, dy) => { padRef.current.p2.dx = dx; padRef.current.p2.dy = dy; }}
@@ -1272,6 +1922,7 @@ export default function App() {
               type="button"
               onClick={togglePause}
               className="absolute hud-tr z-40 w-10 h-10 rounded-full glass border-2 border-[#ffd700] text-[#ffd700] font-black text-base shadow-xl active:scale-90 flex items-center justify-center transition-all hover:scale-110"
+              style={phoneHud.isShort ? { top: `max(${phoneHud.stackTops[0]}px, var(--sa-top))` } : undefined}
               aria-label="Pause"
             >
               {isPaused ? <Play size={18} /> : <Pause size={18} />}
@@ -1282,7 +1933,7 @@ export default function App() {
                 <button type="button" onClick={togglePause} className="px-8 py-2.5 rounded-xl bg-[#ff9933] border-2 border-[#ffd700] text-black font-black flex items-center gap-2 hover:scale-105 transition-all btn-shimmer">
                   <Play size={18} /> RESUME
                 </button>
-                <button type="button" onClick={() => { togglePause(); setGameState('menu'); }} className="px-8 py-2 rounded-xl glass border border-[#1e3327] text-[#f5eedb] font-bold flex items-center gap-2 hover:scale-105 transition-all">
+                <button type="button" onClick={leaveToMap} className="px-8 py-2 rounded-xl glass border border-[#1e3327] text-[#f5eedb] font-bold flex items-center gap-2 hover:scale-105 transition-all">
                   <MapIcon size={16} /> Back to Map
                 </button>
               </div>
@@ -1295,18 +1946,33 @@ export default function App() {
           <IndiaMapSelect
             selectedPolitician={selectedPolitician}
             onSelect={setSelectedPolitician}
-            onStartGame={() => {
-              const p2 = POLITICIANS[(POLITICIANS.indexOf(selectedPolitician) + 3) % POLITICIANS.length];
-              startMatch(selectedPolitician, p2);
-            }}
+            onStartGame={beginVersus}
             is2PlayerMode={is2PlayerMode}
             onToggle2Player={setIs2PlayerMode}
-            onOpenRulebook={() => setIsRulebookOpen(true)}
+            onOpenRulebook={openRulebook}
             onReplayIntro={() => setIsLoadingIntro(true)}
             isForceRotated={isForceRotated}
-            onToggleRotate={toggleRotate}
+            onToggleRotate={isTouchPrimary ? toggleRotate : undefined}
             isFullscreen={isFs}
             onToggleFullscreen={canFullscreen() ? toggleFullscreen : undefined}
+          />
+        )}
+
+        {/* Versus card: shows who you fight before the bell (F34) */}
+        {gameState === 'menu' && vs && (
+          <VersusCard
+            phase={vs.phase}
+            p1={vs.p1}
+            p2={vs.p2}
+            is2Player={is2PlayerMode}
+            onPick={(q: Politician) => setVs({ phase: 'vs', p1: vs.p1, p2: q })}
+            onShuffle={() => setVs((v: VsState | null) => {
+              if (!v || !v.p2) return v;
+              const id = rerollOpponent(POLITICIANS.map((q: Politician) => q.id), v.p1.id, v.p2.id, Math.random);
+              return { ...v, p2: POLITICIANS.find((q: Politician) => q.id === id) || v.p2 };
+            })}
+            onTapCard={skipVersus}
+            onBack={() => setVs(null)}
           />
         )}
 
@@ -1314,14 +1980,16 @@ export default function App() {
         <AIDecisionInspector
           decision={activeDecision}
           isOpen={isInspectorOpen}
+          stillPaused={isPaused}
+          speakerId={inspectorSpeakerId}
           onClose={() => {
             setIsInspectorOpen(false);
-            isPausedRef.current = false;
+            setPause('inspector', false);
           }}
         />
 
         {/* Illustrated Rulebook Modal */}
-        <RulebookModal isOpen={isRulebookOpen} onClose={() => setIsRulebookOpen(false)} />
+        <RulebookModal isOpen={isRulebookOpen} onClose={closeRulebook} />
 
         {/* Post-Match Game Over / Outcome Modal */}
         {gameState === 'over' && (
@@ -1332,13 +2000,13 @@ export default function App() {
                 startMatch(combatantsRef.current.p1.c, combatantsRef.current.p2.c);
               }
             }}
-            onReturnToMap={() => setGameState('menu')}
+            onReturnToMap={leaveToMap}
           />
         )}
       </div>
 
       {/* Mobile Telemetry Drawer Backdrop */}
-      {isMobileTelemetryOpen && (
+      {isMobileTelemetryOpen && gameState !== 'menu' && (
         <div
           onClick={() => setIsMobileTelemetryOpen(false)}
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-in fade-in duration-200"
@@ -1347,30 +2015,36 @@ export default function App() {
 
       {/* Right Telemetry & Explainable AI Console */}
       <aside
+        ref={drawerRef}
+        role={drawerIsDialog ? 'dialog' : undefined}
+        aria-modal={drawerIsDialog ? true : undefined}
+        aria-label={drawerIsDialog ? 'AI telemetry' : undefined}
         className={`${
-          isDesktopSidebarOpen ? 'lg:flex' : 'lg:hidden'
-        } ${
-          isMobileTelemetryOpen
-            ? 'fixed inset-y-0 right-0 z-50 w-full max-w-sm flex shadow-2xl animate-in slide-in-from-right duration-200'
-            : 'hidden'
-        } lg:relative lg:flex-[32_1_0] lg:max-w-[420px] bg-[#0f1a14] border-t-2 lg:border-t-0 lg:border-l-2 border-[#1e3327] flex-col p-3 gap-2 overflow-y-auto shrink-0`}
+          gameState === 'menu'
+            ? 'hidden' // the map screen has no match to report; stays mounted so the log is ready when a match starts
+            : `${isDesktopSidebarOpen ? 'lg:flex' : 'lg:hidden'} ${
+                isMobileTelemetryOpen
+                  ? 'fixed inset-y-0 right-0 z-50 w-full max-w-sm flex shadow-2xl animate-in slide-in-from-right duration-200'
+                  : 'hidden'
+              }`
+        } lg:relative lg:flex-[32_1_0] lg:max-w-[420px] bg-[#0f1a14] border-t-2 lg:border-t-0 lg:border-l-2 border-[#1e3327] flex-col p-3 [@media(max-height:740px)]:p-2 gap-2 [@media(max-height:740px)]:gap-1 overflow-y-auto shrink-0`}
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-2 border-b border-[#1e3327]">
-          <h1 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif tracking-tight">
+          <h2 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif tracking-tight">
             <Landmark size={16} className="text-[#ffd700]" /> Speaker AI Telemetry
-          </h1>
+          </h2>
           <div className="flex items-center gap-2">
             <a
               href="https://github.com/rupac4530-creator/battle-of-272-parliament"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#8ea396] hover:text-[#56d364] transition-all flex items-center gap-1 text-[10px] font-mono hover:scale-105"
+              className="text-[#8ea396] hover:text-[#56d364] transition-all flex items-center gap-1 text-[11px] font-mono hover:scale-105"
               title="GitHub Repository"
             >
               <Github size={13} /> GitHub
             </a>
-            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
+            <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
               {is2PlayerMode ? 'PVP REFEREE' : 'SELF-EXPLAINING CODE'}
             </span>
             {/* Close Button on Mobile Drawer */}
@@ -1388,6 +2062,7 @@ export default function App() {
               onClick={() => setIsDesktopSidebarOpen(false)}
               className="p-1 rounded-lg glass hover:bg-white/10 text-[#8ea396] hover:text-white hidden lg:flex ml-1"
               title="Minimize Sidebar (Theater View)"
+              aria-label="Minimize sidebar (Theater View)"
             >
               <PanelRightClose size={16} />
             </button>
@@ -1396,10 +2071,10 @@ export default function App() {
 
         {/* Real-Time Live Decision Tree Visualizer */}
         <div className="glass-dark border border-[#1e3327] rounded-xl p-2.5">
-          <div className="flex justify-between items-center text-[10px] font-bold text-[#ffd700] mb-1.5">
+          <div className="flex justify-between items-center text-[11px] font-bold text-[#ffd700] mb-1.5">
             <span className="flex items-center gap-1.5"><Brain size={13} /> LIVE DECISION TREE</span>
             <span className="text-[#56d364] font-mono">
-              {activeDecisionTreeAction.toUpperCase()} (
+              {actionLabel(activeDecisionTreeAction).toUpperCase()} (
               {treeUtilityScores[activeDecisionTreeAction] >= 0 ? '+' : ''}
               {Math.round(treeUtilityScores[activeDecisionTreeAction] ?? 0)})
             </span>
@@ -1412,15 +2087,15 @@ export default function App() {
               { id: 'Block', label: 'Block', icon: <Shield size={11} /> },
               { id: 'Approach', label: 'Approach', icon: <ArrowLeftRight size={11} /> },
               { id: 'Retreat', label: 'Retreat', icon: <Undo2 size={11} /> },
-              { id: 'Podium', label: '272 Seats', icon: <Landmark size={11} /> },
-              { id: 'Pickup', label: 'Canteen', icon: <Coffee size={11} /> }
+              { id: 'Podium', label: actionLabel('Podium'), icon: <Landmark size={11} /> },
+              { id: 'Pickup', label: actionLabel('Pickup'), icon: <Coffee size={11} /> }
             ].map(node => {
               const isActive = activeDecisionTreeAction === node.id;
               const val = Math.round(treeUtilityScores[node.id] ?? 0);
               return (
                 <div
                   key={node.id}
-                  className={`px-2 py-1.5 rounded-lg text-[10px] border flex justify-between items-center transition-all duration-200 ${
+                  className={`px-2 py-1.5 rounded-lg text-[11px] border flex justify-between items-center transition-all duration-200 ${
                     isActive
                       ? 'glass border-[#ffd700] text-white font-bold shadow-[0_0_12px_rgba(255,215,0,0.25)]'
                       : 'bg-[#0d1a13] border-[#1a2e22] text-[#8ea396] hover:border-[#2a4e3a]'
@@ -1440,13 +2115,23 @@ export default function App() {
         <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
+            aria-disabled={inspectDisabledReason(is2PlayerMode, !!activeDecision) !== null}
+            title={inspectDisabledReason(is2PlayerMode, !!activeDecision) ?? 'See why the CPU chose its last move'}
             onClick={() => {
-              if (activeDecision) {
-                isPausedRef.current = true;
+              if (is2PlayerMode) return;
+              const latest = latestDecisionRef.current ?? activeDecision;
+              if (latest) {
+                publishDecision(latest, performance.now());
+                setInspectorSpeakerId(combatantsRef.current?.p2.c.id);
+                setPause('inspector', true);
                 setIsInspectorOpen(true);
               }
             }}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-bold glass hover:bg-[#294234] border border-[#ffd700]/40 text-[#ffd700] transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5"
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold glass border border-[#ffd700]/40 text-[#ffd700] transition-all flex items-center justify-center gap-1.5 ${
+              inspectDisabledReason(is2PlayerMode, !!activeDecision) !== null
+                ? 'opacity-45 cursor-not-allowed'
+                : 'hover:bg-[#294234] hover:scale-[1.03]'
+            }`}
           >
             <Brain size={14} /> Why Did You Do That?
           </button>
@@ -1458,13 +2143,14 @@ export default function App() {
               setIsVoiceOn(next);
               setVoiceEnabled(next);
             }}
+            title="Plays the recorded voice clip of each leader (on the map and during supers)"
             className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
               isVoiceOn
                 ? 'bg-[#1f4e35] border-[#56d364] text-white'
                 : 'glass border-[#1e3327] text-[#8ea396]'
             }`}
           >
-            <Mic size={14} /> AI Voice: {isVoiceOn ? 'ON' : 'OFF'}
+            <Mic size={14} /> Voice clips: {isVoiceOn ? 'ON' : 'OFF'}
           </button>
 
           <button
@@ -1481,11 +2167,46 @@ export default function App() {
 
           <button
             type="button"
-            onClick={() => setIsRulebookOpen(true)}
+            onClick={openRulebook}
             className="px-2.5 py-1.5 rounded-lg text-xs font-bold glass hover:bg-[#294234] border border-[#1e3327] text-[#f5eedb] transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5"
           >
             <BookOpen size={14} /> Rulebook
           </button>
+        </div>
+
+        {/* Music: mute + volume */}
+        <div className="flex items-center gap-2 glass-dark border border-[#1e3327] rounded-lg px-2 py-1">
+          <button
+            type="button"
+            onClick={() => setIsMusicMuted(m => !m)}
+            aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
+            aria-pressed={isMusicMuted}
+            title={isMusicMuted ? 'Unmute music' : 'Mute music'}
+            className={`shrink-0 w-11 h-11 rounded-lg border flex items-center justify-center transition-all hover:scale-[1.05] ${
+              isMusicMuted
+                ? 'glass border-[#1e3327] text-[#8ea396]'
+                : 'bg-[#1f4e35] border-[#56d364] text-white'
+            }`}
+          >
+            {isMusicMuted || musicVolume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={AUDIO_UI.musicSliderStep}
+            value={musicVolume}
+            onChange={e => {
+              const v = Number(e.target.value);
+              setMusicVolume(v);
+              if (v > 0) setIsMusicMuted(false); // moving the slider up un-mutes
+            }}
+            aria-label="Music volume"
+            className="flex-1 min-w-0 h-11 accent-[#56d364] cursor-pointer"
+          />
+          <span className="shrink-0 w-10 text-right text-xs font-mono text-[#8ea396]">
+            {isMusicMuted ? 'MUTE' : `${Math.round(musicVolume * 100)}%`}
+          </span>
         </div>
 
         <div className="flex gap-2">
@@ -1505,7 +2226,7 @@ export default function App() {
         {/* Real-Time Telemetry Log Stream */}
         <div
           ref={logContainerRef}
-          className="flex-1 min-h-[110px] max-h-[160px] overflow-y-auto glass-dark border border-[#1e3327] rounded-xl p-2 font-mono flex flex-col gap-1.5"
+          className="flex-1 min-h-[110px] [@media(max-height:800px)]:min-h-[64px] max-h-[160px] overflow-y-auto glass-dark border border-[#1e3327] rounded-xl p-2 font-mono flex flex-col gap-1.5"
         />
 
         {/* Speaker Om Birla Referee Mascot */}
@@ -1527,7 +2248,7 @@ export default function App() {
         </div>
 
         {/* Legend */}
-        <div className="grid grid-cols-2 gap-1.5 text-[10px] text-[#8ea396] pt-1 border-t border-[#1e3327]">
+        <div className="grid grid-cols-2 gap-1.5 text-[11px] text-[#8ea396] pt-1 border-t border-[#1e3327]">
           <span className="flex items-center gap-1"><Briefcase size={10} className="text-[#ffd700]" /> Briefcase: +50 Meter</span>
           <span className="flex items-center gap-1"><Coffee size={10} className="text-[#56d364]" /> Chai: +30 HP Heal</span>
           <span className="flex items-center gap-1"><Scroll size={10} className="text-[#ff9933]" /> Gavel: 1.5x Dmg Boost</span>
@@ -1535,11 +2256,18 @@ export default function App() {
         </div>
 
         {/* Key Bindings */}
-        <div className="text-[10px] text-[#8ea396] pt-1 border-t border-[#1e3327] leading-tight">
-          <b className="text-white">P1:</b> WASD Move/Jump/Block | Space/J Strike | K Special | Q/L Super | F Pickup Line.
+        <div className="text-[11px] text-[#8ea396] pt-1 border-t border-[#1e3327] leading-tight">
+          <b className="text-white">P1:</b> {controlsSummary('p1')}.
+          <br />
+          <b className="text-white">P2:</b> {controlsSummary('p2')}.
           <br />
           <b className="text-[#ffd700]">Win:</b> 0 HP Knockout OR capture 272 Majority Seats on the podium!
         </div>
+
+        {/* Parody notice */}
+        <p className="text-[11px] text-[#8ea396] pt-1 border-t border-[#1e3327] leading-tight">
+          {PARODY_NOTICE}
+        </p>
       </aside>
     </div>
   );

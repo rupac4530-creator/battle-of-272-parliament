@@ -1,5 +1,13 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
+import { installRoundRectFallback } from './game/canvasCompat';
 
-createRoot(document.getElementById('root')!).render(<App />);
+installRoundRectFallback();
+
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>,
+);

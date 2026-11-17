@@ -1,6 +1,5 @@
 {
   "name": "The Parliament House: Battle of 272",
-  "description": "संसद्-भवनम् — An ultra-realistic Indian political arena brawler featuring authentic politician meme superpowers, cinematic cutscenes, real speech synthesis, and explainable AI decision trees.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "description": "संसद्-भवनम् — A fan-made Indian political arena brawler with meme superpowers, cinematic cutscenes, recorded voice clips, and explainable AI decision trees.",
+  "requestFramePermissions": []
 }

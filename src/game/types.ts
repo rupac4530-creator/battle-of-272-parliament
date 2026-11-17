@@ -19,15 +19,8 @@ export interface Politician {
   specialType: 'proj' | 'grab' | 'heal_aura' | 'burn' | 'confuse' | 'drain' | 'counter' | 'pull' | 'combo';
   memeDialogue: string;
   speechText: string;
-  voicePitch: number;
-  voiceRate: number;
   pickupLine: string;
   description: string;
-  stats: {
-    power: number;
-    speed: number;
-    defense: number;
-  };
 }
 
 export interface Combatant {
@@ -41,6 +34,8 @@ export interface Combatant {
   meter: number;
   seats: number;
   cdSpecial: number;
+  lineCd: number;
+  lineUses: number;
   stun: number;
   atk: number;
   attackType?: 'punch' | 'cross' | 'kick' | 'dropkick' | 'special' | 'super';
@@ -54,6 +49,7 @@ export interface Combatant {
   burstCount: number;
   burstTimer: number;
   whip: number;
+  hookPending: boolean;
   surge: number;
   blast: number;
   chain: number;
@@ -62,6 +58,8 @@ export interface Combatant {
   isAI: boolean;
   thought: string;
   blocking: boolean;
+  /** A press made while busy, replayed when free (see bufferStep in logic.ts). */
+  buffer?: { action: 'strike' | 'special' | 'pickupLine' | 'superMove'; kick: number; t: number } | null;
   input: {
     left: number;
     right: number;
@@ -71,6 +69,7 @@ export interface Combatant {
     special: number;
     superMove: number;
     pickupLine: number;
+    kick: number;
   };
 }
 

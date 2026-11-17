@@ -1,5 +1,7 @@
 # 🏛️ The Parliament House: Battle of 272 (3D Edition)
 
+> **Notice:** Fan-made parody. Dialogue and events are fictional. Not affiliated with or endorsed by any person or party.
+
 [![Live Demo](https://img.shields.io/badge/🎮%20Live%20Demo-Play%20Now-success?style=for-the-badge&logo=google-chrome&logoColor=white)](https://rupac4530-creator.github.io/battle-of-272-parliament/)
 [![GitHub Repository](https://img.shields.io/badge/GitHub-rupac4530--creator%2Fbattle--of--272--parliament-181717?style=flat&logo=github)](https://github.com/rupac4530-creator/battle-of-272-parliament)
 [![React](https://img.shields.io/badge/React-19.0.1-61dafb?style=flat&logo=react)](https://react.dev)
@@ -18,7 +20,7 @@
 ## 🌟 What's New in v3 (3D Edition)
 
 - 🥊 **3D Fighter Rendering Engine:** Built on Three.js, rendering dynamic 3D politician models with smooth punch, kick, block, and super-move animations.
-- 🎙️ **Authentic Voice Lines:** Real voice clips for each politician with toggleable AI voice synthesis.
+- 🎙️ **Authentic Voice Lines:** Recorded voice clips for each politician, with a "Voice clips" on/off toggle.
 - 🗺️ **Interactive Geographic Map of India:** Select your leader directly from their political home turf on a cartographic map of India.
 - 🧠 **Explainable AI Decision Tree:** Live real-time utility scores and decision trees showing why the AI makes specific combat choices ("Why Did You Do That?").
 - 🎮 **Virtual On-Screen Gamepad:** Full mobile and touchscreen support alongside desktop keyboard controls.
@@ -96,18 +98,24 @@
 | **Move Left / Right** | <kbd>A</kbd> / <kbd>D</kbd> |
 | **Jump** | <kbd>W</kbd> |
 | **Crouch / Block** | <kbd>S</kbd> |
-| **Strike (Punch/Kick)** | <kbd>Space</kbd> or <kbd>J</kbd> |
+| **Strike (Punch/Cross)** | <kbd>Space</kbd> or <kbd>J</kbd> |
+| **Kick** | <kbd>U</kbd> or <kbd>I</kbd> |
 | **Special Move** | <kbd>K</kbd> |
 | **Super Cinematic** | <kbd>Q</kbd> or <kbd>L</kbd> |
-| **Voice / Pickup Line** | <kbd>F</kbd> |
+| **Pickup Line** | <kbd>F</kbd> |
+| **Pause** | <kbd>Esc</kbd> (and <kbd>P</kbd> in single-player) |
 
 ### Player 2 (Local PvP)
 | Action | Key(s) |
 | :--- | :--- |
-| **Move / Jump / Block** | Arrow Keys <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> |
-| **Strike** | <kbd>Numpad 1</kbd> |
-| **Special Move** | <kbd>Numpad 2</kbd> |
-| **Super Cinematic** | <kbd>Numpad 3</kbd> |
+| **Move Left / Right** | <kbd>←</kbd> / <kbd>→</kbd> |
+| **Jump** | <kbd>↑</kbd> |
+| **Block** | <kbd>↓</kbd> |
+| **Strike (Punch/Cross)** | <kbd>Enter</kbd> |
+| **Kick** | <kbd>/</kbd> |
+| **Special Move** | <kbd>P</kbd> |
+| **Super Cinematic** | <kbd>O</kbd> |
+| **Pickup Line** | <kbd>.</kbd> |
 
 *(Or toggle the on-screen **Virtual Gamepad** for full point-and-click or touch control)*
 
@@ -136,13 +144,22 @@ git clone https://github.com/rupac4530-creator/battle-of-272-parliament.git
 cd battle-of-272-parliament
 
 # Install dependencies
-npm install --legacy-peer-deps
+npm install
 
-# Copy environment template
-cp .env.example .env
-
-# Run development server
+# Run development server (no environment variables or API keys are needed)
 npm run dev
+```
+
+If `npm install` reports a peer-dependency conflict on your machine, run `npm install --legacy-peer-deps` instead.
+
+### Useful scripts
+
+```bash
+npm run lint     # type-check (tsc --noEmit)
+npm test         # unit tests for the game rules
+npm run build    # production build into dist/
+npm run deploy   # build, then publish dist/ to GitHub Pages (gh-pages branch)
+npm run clean    # delete dist/
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.

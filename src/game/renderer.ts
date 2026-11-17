@@ -3,6 +3,10 @@
  */
 
 import { Politician, Combatant, Projectile, Particle, FloatingText, PowerUp } from './types';
+import { fitFontSize, ellipsize, wrapText, revealLines } from './textFit';
+import { CUTSCENE_FADE_AT, CUTSCENE_END, QUOTE_CHARS_PER_SECOND, CUTSCENE_SKIP_AFTER, CUTSCENE_HUD_STRIP, RENDER, ARENA_ART } from './balance';
+import { chamberLayout, portraitSlideOffset } from './logic';
+import { prefersReducedMotion } from './motion';
 import { draw3D } from './fighter3d';
 
 const TAU = Math.PI * 2;
@@ -10,17 +14,39 @@ export const STAGE_WIDTH = 800;
 export const STAGE_HEIGHT = 450;
 export const FLOOR_Y = 372;
 
-// Cached Background Canvas
-let cachedBackground: HTMLCanvasElement | null = null;
+/**
+ * Sizes the stage canvas to (STAGE x scale) backing pixels and maps the 800x450 logical stage onto it, so all
+ * drawing code keeps using stage units. Call at the start of every frame: it resizes only when the scale changed
+ * (assigning width/height clears the canvas and resets its state), then sets the base transform.
+ */
+export function prepareStageCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, scale: number): void {
+  const w = Math.round(STAGE_WIDTH * scale);
+  const h = Math.round(STAGE_HEIGHT * scale);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  ctx.setTransform(w / STAGE_WIDTH, 0, 0, h / STAGE_HEIGHT, 0, 0);
+  // The 3D fighters are 384 px renders drawn smaller (arena) or larger (cutscene portrait): scale them with the
+  // browser's best filter instead of the default 'low' one. Costs nothing when nothing is resized.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+}
 
-export function getChamberBackground(): HTMLCanvasElement {
-  if (cachedBackground) return cachedBackground;
+// Cached background canvases, one per render scale (a few at most; the oldest is dropped).
+const backgroundCache = new Map<number, HTMLCanvasElement>();
+
+export function getChamberBackground(scale: number = 1): HTMLCanvasElement {
+  const cached = backgroundCache.get(scale);
+  if (cached) return cached;
 
   const bg = document.createElement('canvas');
-  bg.width = STAGE_WIDTH;
-  bg.height = STAGE_HEIGHT;
+  bg.width = Math.round(STAGE_WIDTH * scale);
+  bg.height = Math.round(STAGE_HEIGHT * scale);
   const ctx = bg.getContext('2d');
   if (!ctx) return bg;
+  // Everything below is drawn in 800x450 stage units.
+  ctx.scale(bg.width / STAGE_WIDTH, bg.height / STAGE_HEIGHT);
 
   // 1. Vaulted High Ceiling with Rich Teakwood & Architectural Shadow
   const wallGrad = ctx.createLinearGradient(0, 0, 0, FLOOR_Y);
@@ -31,38 +57,41 @@ export function getChamberBackground(): HTMLCanvasElement {
   ctx.fillRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
 
   // 2. Carved Teakwood Grand Columns & Arches with Gold Accents
-  for (let i = 0; i < 7; i++) {
-    const px = 18 + i * 128;
+  // Layout comes from chamberLayout(): symmetric, inside the stage, arches meeting the pillar shafts exactly.
+  const layout = chamberLayout(STAGE_WIDTH);
+  // Arches first, so each pillar is painted over the foot of the arch and the joint looks clean.
+  ctx.strokeStyle = '#4e342e';
+  ctx.lineWidth = ARENA_ART.archLine;
+  for (const arch of layout.arches) {
+    ctx.beginPath();
+    ctx.arc(arch.cx, arch.springY, arch.r, Math.PI, 0);
+    ctx.stroke();
+  }
+  const shaftW = ARENA_ART.pillarWidth;
+  const capW = shaftW + ARENA_ART.capitalOverhang * 2;
+  for (const centre of layout.pillars) {
+    const px = centre - shaftW / 2;
     // Pillar shadow
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(px - 4, 20, 32, FLOOR_Y - 20);
+    ctx.fillRect(px - 4, ARENA_ART.pillarTop - 5, shaftW + 8, FLOOR_Y - ARENA_ART.pillarTop + 5);
 
     // Pillar body
-    const colGrad = ctx.createLinearGradient(px, 0, px + 24, 0);
+    const colGrad = ctx.createLinearGradient(px, 0, px + shaftW, 0);
     colGrad.addColorStop(0, '#3e2723');
     colGrad.addColorStop(0.5, '#5d4037');
     colGrad.addColorStop(1, '#2d1b18');
     ctx.fillStyle = colGrad;
-    ctx.fillRect(px, 25, 24, FLOOR_Y - 25);
+    ctx.fillRect(px, ARENA_ART.pillarTop, shaftW, FLOOR_Y - ARENA_ART.pillarTop);
 
     // Gold capitals and bases
     ctx.fillStyle = '#ffd700';
-    ctx.fillRect(px - 3, 25, 30, 8);
-    ctx.fillRect(px - 3, FLOOR_Y - 8, 30, 8);
-
-    // Arch connecting pillars
-    if (i < 6) {
-      ctx.strokeStyle = '#4e342e';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(px + 64, 45, 52, Math.PI, 0);
-      ctx.stroke();
-    }
+    ctx.fillRect(px - ARENA_ART.capitalOverhang, ARENA_ART.pillarTop, capW, 8);
+    ctx.fillRect(px - ARENA_ART.capitalOverhang, FLOOR_Y - 8, capW, 8);
   }
 
   // 3. Central Gilded Ashok Chakra Mural
   ctx.save();
-  ctx.translate(400, 78);
+  ctx.translate(ARENA_ART.chakraX, ARENA_ART.chakraY);
   // Outer bronze halo
   const haloGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 48);
   haloGrad.addColorStop(0, 'rgba(255, 215, 0, 0.25)');
@@ -174,17 +203,38 @@ export function getChamberBackground(): HTMLCanvasElement {
   ctx.fillRect(podX - 8, FLOOR_Y - podH - 10, podW + 16, 12);
   ctx.strokeRect(podX - 8, FLOOR_Y - podH - 10, podW + 16, 12);
 
-  // Lion capital emblem plaque
+  // Lion capital emblem plaque. The "272" is sized to fit the plaque (measured, so any font works), with a light
+  // outline so it stays readable when the background is scaled.
+  const plaqueY = FLOOR_Y - podH + 24;
   ctx.fillStyle = '#ffd700';
   ctx.beginPath();
-  ctx.arc(400, FLOOR_Y - podH + 24, 12, 0, TAU);
+  ctx.arc(400, plaqueY, ARENA_ART.plaqueRadius, 0, TAU);
   ctx.fill();
-  ctx.fillStyle = '#2d1b18';
-  ctx.font = 'bold 9px sans-serif';
+  const numberPx = fitFontSize(
+    px => {
+      ctx.font = `bold ${px}px sans-serif`;
+      return ctx.measureText('272').width;
+    },
+    ARENA_ART.podiumNumberMaxWidth,
+    ARENA_ART.podiumNumberStart,
+    ARENA_ART.podiumNumberMin
+  );
+  ctx.font = `bold ${numberPx}px sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText('272', 400, FLOOR_Y - podH + 27);
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(255, 248, 220, 0.9)';
+  ctx.lineWidth = 2.5;
+  ctx.strokeText('272', 400, plaqueY + 1);
+  ctx.fillStyle = '#2d1b18';
+  ctx.fillText('272', 400, plaqueY + 1);
+  ctx.textBaseline = 'alphabetic';
 
-  cachedBackground = bg;
+  if (backgroundCache.size >= RENDER.backgroundCacheMax) {
+    const oldest = backgroundCache.keys().next().value;
+    if (oldest !== undefined) backgroundCache.delete(oldest);
+  }
+  backgroundCache.set(scale, bg);
   return bg;
 }
 
@@ -477,6 +527,19 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
   const f = p.vx >= 0 ? 1 : -1;
   ctx.scale(f, 1);
 
+  // The body is flipped so a left-flying projectile points left, but text must never be mirrored.
+  // Flipping again (f * f = 1) puts the label back the right way round. Labels are centred on x = 0,
+  // so the second flip does not move them.
+  const label = (text: string, y: number, font: string, color: string) => {
+    ctx.save();
+    ctx.scale(f, 1);
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = color;
+    ctx.fillText(text, 0, y);
+    ctx.restore();
+  };
+
   if (p.kind === 'wave') {
     ctx.strokeStyle = '#ffd700';
     ctx.lineWidth = 5;
@@ -494,10 +557,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
     ctx.strokeStyle = '#b8860b';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 8px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('24K', 0, 3);
+    label('24K', 3, 'bold 8px sans-serif', '#000000');
   } else if (p.kind === 'ball') {
     // Football
     ctx.fillStyle = '#ffffff';
@@ -547,10 +607,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
     ctx.fillStyle = '#424242';
     ctx.fillRect(80, -28, 22, 60);
 
-    ctx.fillStyle = '#000000';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('JCB BULLDOZER 🚜', 0, 4);
+    label('JCB BULLDOZER', 4, 'bold 15px sans-serif', '#000000');
   } else if (p.kind === 'train') {
     // Vande Bharat Express Bullet Train
     ctx.fillStyle = '#ffffff';
@@ -579,10 +636,7 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
       ctx.fillRect(-120 + w * 46, -55, 32, 16);
     }
 
-    ctx.fillStyle = '#0277bd';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('VANDE BHARAT EXPRESS 🚆', 0, -8);
+    label('VANDE BHARAT EXPRESS', -8, 'bold 15px sans-serif', '#0277bd');
   }
 
   ctx.restore();
@@ -591,15 +645,64 @@ export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile) {
 /**
  * Fullscreen Cinematic Super Move Anime Cutscene
  */
+/**
+ * Set ctx.font to the largest size that fits, and return the text to draw (ellipsized only if even the
+ * minimum size is too wide). Measured at runtime, because Georgia/sans widths differ between devices.
+ */
+function fitText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  fontAt: (px: number) => string,
+  startPx: number,
+  minPx: number
+): string {
+  const px = fitFontSize(
+    p => {
+      ctx.font = fontAt(p);
+      return ctx.measureText(text).width;
+    },
+    maxWidth,
+    startPx,
+    minPx
+  );
+  ctx.font = fontAt(px);
+  return ellipsize(t => ctx.measureText(t).width, text, maxWidth);
+}
+
+/** Text with a dark outline so it stays readable on any stripe colour (white outfits, saffron...). */
+function outlinedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  fill: string,
+  outline = 'rgba(5, 12, 8, 0.92)',
+  lineWidth = 4
+) {
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lineWidth;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+}
+
 export function drawSuperCinematic(
   ctx: CanvasRenderingContext2D,
   combatant: Combatant,
   elapsed: number
 ) {
   const c = combatant.c;
-  const alpha = Math.min(1, elapsed / 0.25) * (elapsed > 2.0 ? Math.max(0, 1 - (elapsed - 2.0) / 0.3) : 1);
+  const alpha =
+    Math.min(1, elapsed / 0.25) *
+    (elapsed > CUTSCENE_FADE_AT ? Math.max(0, 1 - (elapsed - CUTSCENE_FADE_AT) / (CUTSCENE_END - CUTSCENE_FADE_AT)) : 1);
 
   ctx.save();
+  // The top strip (names, health and meter bars, seats line, clock) stays undimmed and readable.
+  ctx.beginPath();
+  ctx.rect(0, CUTSCENE_HUD_STRIP, STAGE_WIDTH, STAGE_HEIGHT - CUTSCENE_HUD_STRIP);
+  ctx.clip();
   // 1. Dark dramatic backdrop
   ctx.globalAlpha = 0.85 * alpha;
   ctx.fillStyle = '#030805';
@@ -621,7 +724,7 @@ export function drawSuperCinematic(
   ctx.lineWidth = 2.5;
   for (let i = 0; i < 32; i++) {
     const angle = (i * TAU) / 32;
-    const r1 = 140 + ((i * 47 + elapsed * 900) % 320);
+    const r1 = 140 + ((i * 47 + (prefersReducedMotion() ? 0 : elapsed * 900)) % 320);
     const r2 = r1 + 120;
     ctx.beginPath();
     ctx.moveTo(STAGE_WIDTH / 2 + Math.cos(angle) * r1 * 1.8, STAGE_HEIGHT / 2 + Math.sin(angle) * r1);
@@ -629,61 +732,80 @@ export function drawSuperCinematic(
     ctx.stroke();
   }
 
-  // 4. Large 3.5x Caricature Portrait Slide-In
-  const slideIn = Math.pow(1 - Math.min(1, elapsed / 0.35), 2) * -420;
-  drawPolitician(ctx, c, 210 + slideIn, 435, 1, {
-    scale: 3.6,
+  // 4. Large caricature portrait slide-in. Sized so the head starts just under the undimmed HUD strip
+  // (the figure is about 108 px tall per 1.0 of scale; at 3.4 with the feet at 442 the head top is ~y 75).
+  const slideIn = portraitSlideOffset(elapsed, prefersReducedMotion());
+  drawPolitician(ctx, c, 210 + slideIn, 442, 1, {
+    scale: 3.4,
     time: elapsed,
     attackProg: 1.0,
-    attackPhase: Math.min(1, elapsed / 2.3),
+    attackPhase: Math.min(1, elapsed / CUTSCENE_END),
     attackType: 'super',
     isSuper: true,
-    superPhase: Math.min(1, elapsed / 2.3),
+    superPhase: Math.min(1, elapsed / CUTSCENE_END),
     superType: c.superType
   });
 
   // 5. Super Move Title Banner
-  const titleX = 360 + (1 - Math.min(1, elapsed / 0.4)) * 500;
+  // The text must fit the space right of the portrait at its FINAL position (the slide-in only moves it).
+  const TITLE_LEFT = 360;
+  const titleMaxWidth = STAGE_WIDTH - TITLE_LEFT - 16;
+  const titleX = TITLE_LEFT + (1 - Math.min(1, elapsed / 0.4)) * 500;
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#ffd700';
-  ctx.strokeStyle = '#050c08';
-  ctx.lineWidth = 6;
-  ctx.font = 'italic 900 38px Georgia, serif';
-  ctx.strokeText(c.superName.toUpperCase(), titleX, 155);
-  ctx.fillText(c.superName.toUpperCase(), titleX, 155);
 
-  ctx.font = '800 14px sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(`⚡ PARLIAMENTARY SUPER MOVE • ${c.title.toUpperCase()}`, titleX, 98);
+  const titleText = fitText(
+    ctx,
+    c.superName.toUpperCase(),
+    titleMaxWidth,
+    px => `italic 900 ${px}px Georgia, serif`,
+    38,
+    24
+  );
+  outlinedText(ctx, titleText, titleX, 155, '#ffd700', '#050c08', 6);
+
+  // Two short lines instead of one long one: the kicker, then the role (shrunk to fit, never clipped).
+  ctx.font = '800 12px sans-serif';
+  outlinedText(ctx, 'PARLIAMENTARY SUPER MOVE', titleX, 80, '#ffffff');
+  const roleText = fitText(ctx, c.title.toUpperCase(), titleMaxWidth, px => `800 ${px}px sans-serif`, 16, 11);
+  outlinedText(ctx, roleText, titleX, 101, '#ffffff');
 
   // 6. Meme Dialogue Typewriter Box
-  const fullQuote = c.memeDialogue;
-  const charCount = Math.floor(elapsed * 32);
-  const displayedQuote = fullQuote.slice(0, charCount);
-
-  // Auto-wrap quote
-  const words = displayedQuote.split(' ');
-  const lines: string[] = [''];
-  words.forEach(w => {
-    if ((lines[lines.length - 1] + w).length > 34) {
-      lines.push('');
-    }
-    lines[lines.length - 1] += w + ' ';
-  });
+  // Wrap the FULL quote once (by real pixel width) and size the box once; typing only reveals characters.
+  const QUOTE_FONT = (px: number) =>
+    `italic 700 ${px}px Georgia, 'Noto Serif Devanagari', 'Nirmala UI', 'Kohinoor Devanagari', serif`;
+  const QUOTE_INNER_WIDTH = 392; // box is 420 wide with 14 px padding
+  let quotePx = 16;
+  let lines: string[] = [];
+  for (; quotePx >= 13; quotePx--) {
+    ctx.font = QUOTE_FONT(quotePx);
+    lines = wrapText(t => ctx.measureText(t).width, c.memeDialogue, QUOTE_INNER_WIDTH);
+    if (lines.length <= 5) break; // keep the box on the stage
+  }
+  const lineHeight = (quotePx * 26) / 16;
+  const boxHeight = 30 + lines.length * lineHeight;
+  const visibleLines = revealLines(lines, Math.floor(elapsed * QUOTE_CHARS_PER_SECOND));
 
   ctx.globalAlpha = alpha * 0.92;
   ctx.fillStyle = '#08120d';
-  ctx.fillRect(350, 210, 420, 30 + lines.length * 26);
+  ctx.fillRect(350, 210, 420, boxHeight);
   ctx.strokeStyle = '#ffd700';
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(350, 210, 420, 30 + lines.length * 26);
+  ctx.strokeRect(350, 210, 420, boxHeight);
 
   ctx.globalAlpha = alpha;
   ctx.fillStyle = '#f5eedb';
-  ctx.font = 'italic 700 16px Georgia, serif';
-  lines.forEach((line, idx) => {
-    ctx.fillText(line, 364, 238 + idx * 26);
+  ctx.font = QUOTE_FONT(quotePx);
+  visibleLines.forEach((line, idx) => {
+    ctx.fillText(line, 364, 238 + idx * lineHeight);
   });
+
+  // Skip hint, once skipping is possible and until the scene starts to fade.
+  if (elapsed >= CUTSCENE_SKIP_AFTER && elapsed < CUTSCENE_FADE_AT) {
+    ctx.globalAlpha = 0.75 * alpha;
+    ctx.font = '700 11px sans-serif';
+    ctx.textAlign = 'right';
+    outlinedText(ctx, 'TAP OR PRESS ANY KEY TO SKIP', STAGE_WIDTH - 14, STAGE_HEIGHT - 12, '#f5eedb');
+  }
 
   ctx.restore();
 }
