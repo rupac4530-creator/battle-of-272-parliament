@@ -476,7 +476,11 @@ export function calculateAIUtilities(
     Retreat: (ai.hp < 30 && d < 170) ? 42 + (30 - ai.hp) : (d < 45 ? 14 : -20),
     Block: (target.atk > 0 && d < 100) ? 62 : -5,
     Pickup: closestPowerUp ? (35 + (closestPowerUp.type === 'cup' ? (100 - ai.hp) * 0.6 : closestPowerUp.type === 'case' ? (100 - ai.meter) * 0.3 : 15) - minPowerUpDist * 0.06 - (d < 110 ? 40 : 0)) : -99,
-    Podium: 22 + (272 - ai.seats) * 0.05 - Math.abs(ai.x - 400) * 0.04 + onPodiumBonus
+    Podium: 22 + (272 - ai.seats) * 0.05 - Math.abs(ai.x - 400) * 0.04 + onPodiumBonus,
+    // The CPU recites a pickup line when it has uses left, the cooldown is done, and the opponent is
+    // far enough away that a strike would not be better. Scores just above Podium so it is a sometimes-
+    // action, not a dominant one (the max-uses cap stops it from being an exploit).
+    PickupLine: (ai.lineUses < PICKUP_LINE.maxUses && ai.lineCd <= 0 && d > 160) ? 28 + (272 - ai.seats) * 0.08 : -99
   };
 
   let best = 'Strike';
@@ -514,7 +518,8 @@ export function calculateAIUtilities(
     Retreat: `Health is critical (${Math.round(ai.hp)} HP), repositioning to safety`,
     Block: `Opponent is mid-swing within striking distance (${Math.round(d)}px)`,
     Pickup: closestPowerUp ? `Grabbing high-priority ${POWERUP_NAMES[closestPowerUp.type]?.split(':')[0]} (${Math.round(minPowerUpDist)}px away)` : 'No item nearby',
-    Podium: `Controlling Speaker Podium (${Math.round(ai.seats)}/272 seats)`
+    Podium: `Controlling Speaker Podium (${Math.round(ai.seats)}/272 seats)`,
+    PickupLine: `Reciting a witty pickup line for +${PICKUP_LINE.seats} seats (${PICKUP_LINE.maxUses - ai.lineUses} left)`
   };
 
   return {
@@ -537,7 +542,8 @@ export const ACTION_LABEL: Record<string, string> = {
   Approach: 'Approach',
   Retreat: 'Retreat',
   Podium: '272 Seats',
-  Pickup: 'Canteen'
+  Pickup: 'Canteen',
+  PickupLine: 'Taunt'
 };
 
 /** Player-facing name for an AI action id (unknown ids are shown as they are). */

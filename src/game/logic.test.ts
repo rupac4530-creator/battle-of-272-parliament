@@ -270,6 +270,29 @@ test('AI hysteresis keeps the previous action unless another is clearly better',
   assert.equal(sticky.best, fresh.best);
 });
 
+test('AI considers a pickup line when far from the opponent and has uses left', () => {
+  const ai = createCombatant(POLITICIANS[1], 100, true);
+  const foe = createCombatant(POLITICIANS[0], 700, false); // 600 px away
+  const decision = calculateAIUtilities(ai, foe, []);
+  assert.ok(decision.utilityMap.PickupLine > -99, 'PickupLine should be viable when far away');
+});
+
+test('AI does not use a pickup line when in melee range or out of uses', () => {
+  const ai = createCombatant(POLITICIANS[1], 300, true);
+  const foe = createCombatant(POLITICIANS[0], 350, false); // 50 px — melee
+  assert.equal(calculateAIUtilities(ai, foe, []).utilityMap.PickupLine, -99);
+  // Out of uses
+  const ai2 = createCombatant(POLITICIANS[1], 100, true);
+  ai2.lineUses = 5;
+  const foe2 = createCombatant(POLITICIANS[0], 700, false);
+  assert.equal(calculateAIUtilities(ai2, foe2, []).utilityMap.PickupLine, -99);
+  // Cooldown active
+  const ai3 = createCombatant(POLITICIANS[1], 100, true);
+  ai3.lineCd = 2;
+  const foe3 = createCombatant(POLITICIANS[0], 700, false);
+  assert.equal(calculateAIUtilities(ai3, foe3, []).utilityMap.PickupLine, -99);
+});
+
 // ── F16: frame-rate independent movement ────────────────────────────────────
 const FPS_LIST = [30, 60, 144, 240];
 

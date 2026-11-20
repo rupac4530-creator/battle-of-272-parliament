@@ -342,7 +342,7 @@ export default function App() {
       const forceSuper = params.get('super');
       const delay = parseFloat(params.get('superDelay') || '600');
       if (forceSuper) {
-        setTimeout(() => {
+        const id = window.setTimeout(() => {
           if (combatantsRef.current) {
             const actor = forceSuper === 'p2' ? combatantsRef.current.p2 : combatantsRef.current.p1;
             const target = forceSuper === 'p2' ? combatantsRef.current.p1 : combatantsRef.current.p2;
@@ -351,6 +351,7 @@ export default function App() {
             triggerSuperMove(actor, target);
           }
         }, delay);
+        return () => window.clearTimeout(id);
       }
     }
   }, []);
@@ -1167,6 +1168,7 @@ export default function App() {
                   }
                   if (nearest) navigateTo(nearest.x);
                 }
+                else if (decision.best === 'PickupLine') p2.input.pickupLine = 1;
 
                 // Jump over an incoming train or bulldozer. Floor-level supers are dodged by being
                 // airborne, and each has a window that keeps the jump timed to the projectile:
@@ -1740,6 +1742,14 @@ export default function App() {
     resumeAllAudio(); // lift the global audio hold, then cut everything
     stopBattleMusic();
     stopAllVoices();
+    // Null out stale simulation refs so nothing from the old match leaks into the next one.
+    combatantsRef.current = null;
+    projectilesRef.current = [];
+    powerUpsRef.current = [];
+    particlesRef.current = [];
+    floatingTextsRef.current = [];
+    hitStopRef.current = 0;
+    hitStopCdRef.current = 0;
     setIsMobileTelemetryOpen(false); // a drawer left open must not reappear on the next match
     setVs(null);
     setGameState('menu');
@@ -2088,7 +2098,8 @@ export default function App() {
               { id: 'Approach', label: 'Approach', icon: <ArrowLeftRight size={11} /> },
               { id: 'Retreat', label: 'Retreat', icon: <Undo2 size={11} /> },
               { id: 'Podium', label: actionLabel('Podium'), icon: <Landmark size={11} /> },
-              { id: 'Pickup', label: actionLabel('Pickup'), icon: <Coffee size={11} /> }
+              { id: 'Pickup', label: actionLabel('Pickup'), icon: <Coffee size={11} /> },
+              { id: 'PickupLine', label: actionLabel('PickupLine'), icon: <Mic size={11} /> }
             ].map(node => {
               const isActive = activeDecisionTreeAction === node.id;
               const val = Math.round(treeUtilityScores[node.id] ?? 0);
