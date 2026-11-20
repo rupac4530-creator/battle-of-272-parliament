@@ -1435,7 +1435,8 @@ test('voice clean-up: dead pitch/rate data is gone and the cutscene end fades th
   assert.doesNotMatch(read('./logic.ts'), /voicePitch|voiceRate/);
   assert.doesNotMatch(read('./types.ts'), /voicePitch|voiceRate/);
   assert.doesNotMatch(read('../components/IndiaMapSelect.tsx'), /voicePitch|voiceRate/);
-  assert.match(read('../App.tsx'), /stopVoice\(VOICE\.cutsceneFadeSeconds\)/);
+  // After extraction, stopVoice call moved to combat.ts
+  assert.match(read('./combat.ts'), /stopVoice\(VOICE\.cutsceneFadeSeconds\)/);
   assert.ok(VOICE.cutsceneFadeSeconds > 0);
 });
 
@@ -1620,11 +1621,13 @@ test('switching voice clips off cuts the clip that is playing', async () => {
 
 test('App: music slider and mute exist, and the voice toggle is called "Voice clips"', () => {
   const app = readFileSync(fileURLToPath(new URL('../App.tsx', import.meta.url)), 'utf8');
-  assert.match(app, /setBattleMusicVolume\(/);
-  assert.match(app, /aria-label="Music volume"/);
-  assert.match(app, /Mute music/);
-  assert.match(app, /Voice clips:/);
-  assert.doesNotMatch(app, /AI Voice/);
+  const sidebar = readFileSync(fileURLToPath(new URL('../components/TelemetrySidebar.tsx', import.meta.url)), 'utf8');
+  const combined = app + '\n' + sidebar;
+  assert.match(combined, /setBattleMusicVolume\(/);
+  assert.match(combined, /aria-label="Music volume"/);
+  assert.match(combined, /Mute music/);
+  assert.match(combined, /Voice clips:/);
+  assert.doesNotMatch(combined, /AI Voice/);
   // arrows on the focused slider must reach the slider, not the game
   assert.match(app, /type === 'range' && e\.code\.startsWith\('Arrow'\)\) return;/);
 });
@@ -1924,12 +1927,13 @@ test('Controls: touch phones are told to tap, desktops may press a key', () => {
 test('Controls: App, rulebook and README read the table instead of printing their own keys', () => {
   const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
   const app = read('../App.tsx');
+  const sidebar = read('../components/TelemetrySidebar.tsx');
   const rules = read('../components/RulebookModal.tsx');
   const readme = read('../../README.md');
   assert.doesNotMatch(app, /(keyboardStateRef|justPressedRef)\.current\.(Key[A-Z]|Arrow|Enter|Space)/, 'no hard-coded key codes in the dispatch');
   assert.match(app, /isActive\('p2', 'kick'/);
   assert.match(app, /isActive\('p2', 'line'/);
-  assert.match(app, /controlsSummary\('p2'\)/);
+  assert.match(sidebar, /controlsSummary\('p2'\)/);
   assert.match(app, /swallowedInMatch\(/);
   assert.match(rules, /bracketLabels\(/);
   assert.doesNotMatch(rules, /\[J\]|\[Space\]|\[K\]|\[Q\]|\[L\]|\[F\]/, 'rulebook keys come from the table');
@@ -1974,6 +1978,7 @@ test('Rulebook: no stale claims, new rules present, App uses the shared strike d
   const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
   const rules = read('../components/RulebookModal.tsx');
   const app = read('../App.tsx');
+  const combat = read('../game/combat.ts');
   assert.doesNotMatch(rules, /cancel knockback/i, 'blocked hits do slide you back');
   assert.doesNotMatch(rules, /by 75%/, 'block no longer cuts 75%');
   assert.doesNotMatch(rules, /Modi's Mitron Shockwave, Amit Shah/, 'the hand-written 6-fighter list is gone');
@@ -1983,7 +1988,7 @@ test('Rulebook: no stale claims, new rules present, App uses the shared strike d
   assert.match(rules, /Leap over/, 'jump dodge rule');
   assert.match(rules, /dropkick/i);
   assert.match(rules, /controlsSummary\('p2'\)/);
-  assert.match(app, /STRIKE_DAMAGE\.kick/);
+  assert.match(combat, /STRIKE_DAMAGE\.kick/);
   assert.doesNotMatch(app, /attackType === 'kick' \? 9 :/);
 });
 
@@ -2009,6 +2014,7 @@ test('Modal accessibility: every dialog is labelled and uses the shared hook, on
   const vs = read('../components/VersusCard.tsx');
   const map = read('../components/IndiaMapSelect.tsx');
   const app = read('../App.tsx');
+  const sidebar = read('../components/TelemetrySidebar.tsx');
   const hook = read('../hooks/useModalA11y.ts');
   for (const [name, src, id] of [['rulebook', rules, 'rulebook-title'], ['inspector', insp, 'inspector-title'], ['game over', over, 'gameover-title']] as const) {
     assert.match(src, /role="dialog"/, `${name} has role=dialog`);
@@ -2020,10 +2026,10 @@ test('Modal accessibility: every dialog is labelled and uses the shared hook, on
   assert.match(rules, /aria-label="Close rulebook"/);
   assert.match(rules, /onClose \}\)|onClose\b/);
   assert.match(vs, /aria-modal="true"/);
-  assert.match(app, /useModalA11y\(drawerRef/);
-  assert.match(app, /aria-label="Minimize sidebar/);
+  assert.match(sidebar, /useModalA11y\(drawerRef/);
+  assert.match(sidebar, /aria-label="Minimize sidebar/);
   // exactly one h1 in the whole UI: the visually hidden page title
-  const all = [rules, insp, over, vs, map, app].join('\n');
+  const all = [rules, insp, over, vs, map, app, sidebar].join('\n');
   assert.equal((all.match(/<h1\b/g) || []).length, 1);
   assert.match(app, /<h1 className="sr-only">Battle of 272 Parliament<\/h1>/);
   // game over is not dismissible with Esc (both exits are real choices)
@@ -2296,9 +2302,10 @@ test('inspector wiring: speaker id, reset on open, derived answer, disabled look
   assert.match(insp, /useEffect\(\(\) => \{\s*setCounterfactual\(null\);\s*\}, \[isOpen\]\)/);
   assert.doesNotMatch(insp, /expected value was positive/);
   const app = read('../App.tsx');
+  const sidebar = read('../components/TelemetrySidebar.tsx');
   assert.match(app, /speakerId=\{inspectorSpeakerId\}/);
   assert.match(app, /setInspectorSpeakerId\(combatantsRef\.current\?\.p2\.c\.id\)/);
-  assert.match(app, /aria-disabled=\{inspectDisabledReason\(is2PlayerMode, !!activeDecision\) !== null\}/);
+  assert.match(sidebar, /aria-disabled=\{inspectDisabledReason\(is2PlayerMode, !!activeDecision\) !== null\}/);
   assert.match(app, /if \(is2PlayerMode\) return;/);
 });
 
@@ -2354,17 +2361,20 @@ test('F46: inspector wording, shared labels and the animation classes are all wi
   assert.match(insp, /scoreBar\(ev, maxAbsEV\)/);
   assert.doesNotMatch(insp, /text-\[11px\]/); // 12 px (text-xs) in the inspector
   const app = read('../App.tsx');
-  assert.match(app, /actionLabel\(activeDecisionTreeAction\)\.toUpperCase\(\)/);
-  assert.match(app, /label: actionLabel\('Podium'\)/);
-  assert.match(app, /label: actionLabel\('Pickup'\)/);
+  const sidebar = read('../components/TelemetrySidebar.tsx');
+  assert.match(sidebar, /actionLabel\(activeDecisionTreeAction\)\.toUpperCase\(\)/);
+  assert.match(sidebar, /label: actionLabel\('Podium'\)/);
+  assert.match(sidebar, /label: actionLabel\('Pickup'\)/);
   assert.match(app, /actionLabel\(decision\.best\)\.toUpperCase\(\)/);
   assert.match(app, /p2\.thought = `\$\{actionLabel\(decision\.best\)\}/);
   assert.ok(!app.includes("label: '272 Seats'") && !app.includes("label: 'Canteen'"));
+  assert.ok(!sidebar.includes("label: '272 Seats'") && !sidebar.includes("label: 'Canteen'"));
 
   // Every Tailwind-v4-missing animation class used anywhere in the UI is defined in index.css.
   const css = read('../index.css');
   const files = ['../App.tsx', '../components/GameOverModal.tsx', '../components/IntroLoadingScreen.tsx', '../components/IndiaMapSelect.tsx',
-    '../components/RulebookModal.tsx', '../components/VersusCard.tsx', '../components/VirtualGamepad.tsx', '../components/AIDecisionInspector.tsx'];
+    '../components/RulebookModal.tsx', '../components/VersusCard.tsx', '../components/VirtualGamepad.tsx', '../components/AIDecisionInspector.tsx',
+    '../components/TelemetrySidebar.tsx'];
   const used = new Set<string>();
   for (const f of files) {
     for (const m of read(f).matchAll(/\b(animate-in|fade-in|zoom-in-\d+|slide-in-from-(?:top|bottom|left|right)|text-shadow)\b(?!-)/g)) used.add(m[1]);
@@ -2607,7 +2617,8 @@ test('F53 parody notice: one string, shown in the intro and sidebar, identical a
   assert.match(PARODY_NOTICE, /Fan-made parody/);
   assert.match(PARODY_NOTICE, /Not affiliated with or endorsed by any person or party\./);
   assert.match(read('src/components/IntroLoadingScreen.tsx'), /\{PARODY_NOTICE\}/);
-  assert.match(read('src/App.tsx'), /\{PARODY_NOTICE\}/);
+  // PARODY_NOTICE moved from inline App.tsx to the extracted TelemetrySidebar component
+  assert.match(read('src/components/TelemetrySidebar.tsx'), /\{PARODY_NOTICE\}/);
   const readme = read('README.md').split('\n');
   assert.equal(readme[2], `> **Notice:** ${PARODY_NOTICE}`, 'README blockquote directly under the title');
 });
@@ -2657,11 +2668,15 @@ test('F59 balance pass: tuned values stay in sane ranges and the game reads them
   assert.ok(bal.SHAH_CHAIN_DMG >= 14 && bal.PARRY.cooldown >= 5.5 && bal.VETO.silenceSeconds <= 6, 'F59c: Shah hits harder, Kharge parries less often and silences for less');
   assert.ok(bal.SHAH_FREEZE_SECONDS > 2.0 && bal.SHAH_FREEZE_SECONDS < 3.5, 'Shah freeze sits between the F59 2.0 s and the original 3.5 s');
   assert.ok(bal.SUPER_TICK.gst_blocks.dmg > 4 && bal.SUPER_TICK.gst_blocks.dmg <= 6, 'GST rain was 4 per tick; F59b raises it a little');
+  // After the extraction, combat constants live in combat.ts (called from App.tsx via the World bridge).
+  // The game loop in App.tsx still references MUFFLER_HOOK and SUPER_TICK directly.
   const app = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
+  const combat = readFileSync(new URL('./combat.ts', import.meta.url), 'utf8');
+  const combined = app + '\n' + combat;
   for (const needle of ['PARRY.window', 'PARRY.cooldown', 'PARRY.reflectDmg', 'VETO.stun', 'DHARNA_INVINCIBLE_SECONDS', 'MAMATA_COMBO_COOLDOWN', 'KADI_NINDA.confuseSeconds', 'AI_DODGE_CHANCE', 'RAFALE.spreadPx', 'RAFALE.dmg', 'SHAH_CHAIN_DMG', 'SHAH_FREEZE_SECONDS', 'VETO.silenceSeconds', 'MODI_WAVE.dmg', 'MUFFLER_HOOK.dmg']) {
-    assert.ok(app.includes(needle), `App.tsx uses ${needle}`);
+    assert.ok(combined.includes(needle), `App.tsx or combat.ts uses ${needle}`);
   }
-  assert.ok(!/a\.counter = 0\.85/.test(app) && !/b\.stun = 1\.4/.test(app), 'old hard-coded numbers are gone');
+  assert.ok(!/a\.counter = 0\.85/.test(combined) && !/b\.stun = 1\.4/.test(combined), 'old hard-coded numbers are gone');
 });
 
 

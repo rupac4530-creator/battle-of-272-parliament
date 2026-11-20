@@ -1,11 +1,18 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import {
-  VETO,
-  PARRY,
-  KADI_NINDA,
-  DHARNA_INVINCIBLE_SECONDS,
-  MAMATA_COMBO_COOLDOWN,
-  AI_DODGE_CHANCE, CAMERA, MODI_WAVE, STRIKE_DAMAGE, PICKUP_LINE, SUPER_TICK, MUFFLER_HOOK, RAHUL_HEAL, SHAH_CHAIN_DMG, SHAH_FREEZE_SECONDS, RAFALE, MOVE, HIT_FEEL, CUTSCENE_END, HUD_TEXT, GHOST_BAR, FLOAT_TEXT, CLOCK, REFUSAL_TEXT, PHONE_HUD, VS, VOICE, AUDIO_UI, DECISION_UI } from './game/balance';
+  AI_DODGE_CHANCE, CAMERA, MOVE, HIT_FEEL, CUTSCENE_END, HUD_TEXT, GHOST_BAR, FLOAT_TEXT, CLOCK, PHONE_HUD, VS, VOICE, AUDIO_UI, DECISION_UI, MUFFLER_HOOK, SUPER_TICK } from './game/balance';
+import {
+  handleHit as combatHandleHit,
+  performStrike as combatPerformStrike,
+  performSpecial as combatPerformSpecial,
+  performPickupLine as combatPerformPickupLine,
+  triggerSuperMove as combatTriggerSuperMove,
+  releaseSuperAbility as combatReleaseSuperAbility,
+  collectPowerUp as combatCollectPowerUp,
+  spawnParticles as combatSpawnParticles,
+  addFloatingText as combatAddFloatingText,
+  type World
+} from './game/combat';
 import { prefersReducedMotion } from './game/motion';
 import {
   Politician,
@@ -54,15 +61,13 @@ import {
   SHOUTS,
   phoneHudLayout,
   coachMayReplace,
-  stepRoster, inspectDisabledReason, pickOpponent, rerollOpponent, vsMaySkip,
+  stepRoster, pickOpponent, rerollOpponent, vsMaySkip,
   effectiveMusicVolume,
   shouldPublishDecision,
   actionLabel,
   formatEv,
 } from './game/logic';
-import { PARODY_NOTICE } from './game/notice';
-import { isActive, primaryLabel, controlsSummary, swallowedInMatch, PAUSE_CODES } from './game/controls';
-import { useModalA11y } from './hooks/useModalA11y';
+import { isActive, primaryLabel, swallowedInMatch, PAUSE_CODES } from './game/controls';
 import { usePersistedSetting } from './hooks/usePersistedSetting';
 import { warmFighter } from './game/warm';
 import { loadSettings } from './game/settings';
@@ -98,14 +103,13 @@ import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VirtualGamepad, PadAction } from './components/VirtualGamepad';
 import { IntroLoadingScreen } from './components/IntroLoadingScreen';
+import { TelemetrySidebar } from './components/TelemetrySidebar';
 import { useDeviceLayout, readTouchPrimary } from './hooks/useDeviceLayout';
 import { enterImmersive, exitImmersive, isFullscreen, canFullscreen } from './game/display';
 import {
-  Landmark, Brain, Mic, GraduationCap, BookOpen, Gamepad2,
-  Swords, Shield, Zap, Flame, ArrowLeftRight, Undo2, Coffee,
-  Briefcase, Scroll, Play, Pause, MapIcon, Github, X,
+  GraduationCap, Play, Pause, MapIcon, X,
   RotateCw, Maximize2, PanelRightClose, PanelRightOpen,
-  Volume2, VolumeX
+  Brain
 } from 'lucide-react';
 
 /** Versus card state (F34): 'pick' = Player 2 chooses a fighter, 'vs' = the matchup is shown before the bell. */
@@ -116,7 +120,6 @@ const POWERUP_TYPES = ['case', 'cup', 'gavel', 'mic'] as const;
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mascotCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const logContainerRef = useRef<HTMLDivElement | null>(null);
 
   // F44: choices saved from the last visit (read once; every field is optional and falls back to the default).
@@ -413,397 +416,41 @@ export default function App() {
     setCoachTip(text);
   }, []);
 
-  // Spawn visual particle burst
-  const spawnParticles = (x: number, y: number, count: number, color: string) => {
-    for (let i = 0; i < count; i++) {
-      particlesRef.current.push({
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 440,
-        vy: (Math.random() - 0.7) * 380,
-        life: 0.5 + Math.random() * 0.3,
-        maxLife: 0.8,
-        color,
-        size: 3 + Math.random() * 3
-      });
-    }
-  };
+  // ---------------------------------------------------------------------------
+  // World context bridge: connects extracted combat.ts functions to React refs
+  // ---------------------------------------------------------------------------
+  const getWorld = useCallback((): World => ({
+    combatants: () => combatantsRef.current,
+    get projectiles() { return projectilesRef.current; },
+    get particles() { return particlesRef.current; },
+    get floatingTexts() { return floatingTextsRef.current; },
+    get cameraShake() { return cameraShakeRef.current; },
+    setCameraShake: (v: number) => { cameraShakeRef.current = v; },
+    get hitStop() { return hitStopRef.current; },
+    setHitStop: (v: number) => { hitStopRef.current = v; },
+    get hitStopCd() { return hitStopCdRef.current; },
+    setHitStopCd: (v: number) => { hitStopCdRef.current = v; },
+    schedule,
+    addLog,
+    updateCoach,
+    setIsCutscene,
+    setCinematic: (v) => { cinematicRef.current = v; },
+    padReset: () => {
+      padRef.current = { p1: { dx: 0, dy: 0, block: false, jump: false }, p2: { dx: 0, dy: 0, block: false, jump: false } };
+    },
+    coachStep: () => coachStepRef.current
+  }), [addLog, updateCoach]);
 
-  // Add floating combat text
-  /** Like addFloatingText, but skipped while the same message is still showing near x (refusals while a key is mashed). */
-  const addRefusalText = (text: string, x: number, y: number, color: string) => {
-    if (isDuplicateFloat(floatingTextsRef.current, text, x, REFUSAL_TEXT.duplicateRadius)) return;
-    addFloatingText(text, x, y, color);
-  };
-
-  const addFloatingText = (text: string, x: number, y: number, color: string) => {
-    floatingTextsRef.current.push({
-      id: Math.random(),
-      text,
-      x,
-      y,
-      life: floatingTextLife(text.length),
-      color
-    });
-  };
-
-  // Combat strike hit resolution
-  const handleHit = (
-    attacker: Combatant,
-    defender: Combatant,
-    baseDamage: number,
-    baseKnockback: number,
-    unblockable = false
-  ) => {
-    if (defender.invincible > 0 || defender.hp <= 0) return;
-
-    // Point of Order Parry Counter check
-    if (defender.counter > 0 && !unblockable) {
-      defender.counter = 0;
-      playSound(900, 0.2, 'triangle');
-      addFloatingText('PARRIED!', defender.x, defender.y - 120, '#58a6ff');
-      addLog('me', `${defender.c.name}: Point of Order! Parried ${attacker.c.name}.`);
-      defender.meter = Math.min(100, defender.meter + PARRY.meterGain);
-      handleHit(defender, attacker, PARRY.reflectDmg, 280, true);
-      return;
-    }
-
-    const { finalDamage, knockbackMultiplier } = calculateHitDamage(
-      attacker.damageBoost,
-      defender.blocking && !unblockable,
-      baseDamage
-    );
-
-    if (defender.blocking && !unblockable) {
-      playSound(220, 0.08, 'sawtooth');
-    } else {
-      defender.stun = 0.25;
-      playSound(160 + Math.random() * 60, 0.12, 'square', 0.1, -90);
-    }
-
-    defender.hp = Math.max(0, defender.hp - finalDamage);
-    attacker.meter = Math.min(100, attacker.meter + finalDamage * 1.5);
-    defender.meter = Math.min(100, defender.meter + finalDamage * 0.5);
-
-    attacker.seats = Math.min(272, attacker.seats + finalDamage * 0.5);
-    defender.seats = Math.max(0, defender.seats - finalDamage * 0.25);
-
-    defender.vx = attacker.facing * baseKnockback * knockbackMultiplier;
-    // Blocked hits slide the blocker back but must not launch them: the hop dropped the guard
-    // for ~0.14 s and let follow-up hits land at full damage.
-    if (!(defender.blocking && !unblockable)) {
-      defender.vy = Math.min(defender.vy, -130);
-    }
-
-    attacker.comboCount = attacker.comboTimer > 0 ? attacker.comboCount + 1 : 1;
-    attacker.comboTimer = 1.2;
-
-    // Blocks look and feel different from clean hits: blue sparks, less shake, grey number.
-    const blockedHit = defender.blocking && !unblockable;
-    const feel = hitFeel(finalDamage, blockedHit);
-    spawnParticles(defender.x, defender.y - 60, feel.sparkCount, feel.sparkColor);
-    cameraShakeRef.current = Math.max(cameraShakeRef.current, feel.shake);
-    addFloatingText(feel.label, defender.x + (Math.random() - 0.5) * 28, defender.y - 105, feel.numberColor);
-    if (feel.hitStop > 0 && hitStopCdRef.current <= 0) {
-      hitStopRef.current = Math.max(hitStopRef.current, feel.hitStop);
-      hitStopCdRef.current = HIT_FEEL.stopCooldown;
-    }
-
-    if (attacker === combatantsRef.current?.p1) {
-      updateCoach('Great strike! Keep attacking to charge your Super Meter to 100%!', 2);
-    }
-  };
-
-  // Perform standard strike (chains punch -> cross -> high martial arts kick, or airborne dropkick)
-  const performStrike = (a: Combatant, b: Combatant) => {
-    const isAirborne = a.y < FLOOR_Y - 2;
-    const isForward = (a.facing > 0 && a.input.right) || (a.facing < 0 && a.input.left);
-    const attackType = pickStrikeType({
-      airborne: isAirborne,
-      forward: !!isForward,
-      wantKick: !!a.input.kick,
-      comboCount: a.comboCount
-    });
-    a.input.kick = 0;
-
-    a.attackType = attackType;
-    a.atk = attackType === 'kick' ? 0.35 : (attackType === 'dropkick' ? 0.38 : 0.26);
-
-    if (attackType === 'kick' || attackType === 'dropkick') {
-      playSound(380, 0.12, 'sawtooth', 0.08, -140);
-      addFloatingText('KICK!', a.x + a.facing * 44, a.y - 70, '#ff9933');
-    } else {
-      playSound(320, 0.07, 'square', 0.05, -100);
-    }
-
-    const range = (attackType === 'kick' || attackType === 'dropkick' ? 84 : 66) + (a.blast > 0 ? 32 : 0);
-    const dmg = attackType === 'kick' ? STRIKE_DAMAGE.kick : (attackType === 'dropkick' ? STRIKE_DAMAGE.dropkick : STRIKE_DAMAGE.punch);
-    const knockback = attackType === 'kick' ? 270 : (attackType === 'dropkick' ? 320 : 210);
-
-    if (Math.abs(a.x - b.x) < range && Math.abs(a.y - b.y) < 75) {
-      handleHit(a, b, dmg, knockback);
-    }
-  };
-
-  // Perform politician's signature special ability
-  const performSpecial = (a: Combatant, b: Combatant) => {
-    const c = a.c;
-    a.cdSpecial = 2.6;
-    a.attackType = 'special';
-    a.atk = 0.34;
-    const dist = Math.abs(a.x - b.x);
-    playSound(520, 0.16, 'sawtooth', 0.07, -200);
-    addFloatingText(SHOUTS[c.id] ?? '', a.x, a.y - 134, '#ffb347');
-
-    if (c.specialType === 'proj') {
-      projectilesRef.current.push({
-        id: Math.random(),
-        kind: 'wave',
-        x: a.x + a.facing * 36,
-        y: a.y - 62,
-        vx: a.facing * 460,
-        dmg: MODI_WAVE.dmg,
-        owner: a,
-        lifetime: 2
-      });
-    } else if (c.specialType === 'grab') {
-      if (dist < 88) {
-        handleHit(a, b, 10, 130);
-        const stolen = Math.min(25, b.meter);
-        b.meter -= stolen;
-        a.meter = Math.min(100, a.meter + stolen);
-        addFloatingText('METER SIPHONED', b.x, b.y - 120, '#ffd700');
-        addLog(a.isAI ? 'cpu' : 'me', `${c.name} executed Operation Lotus, stealing ${Math.round(stolen)}% meter!`);
-      } else {
-        addFloatingText('MISS', a.x, a.y - 120, '#888888');
-      }
-    } else if (c.specialType === 'drain') {
-      if (dist < 96) {
-        handleHit(a, b, 8, 110);
-        b.meter = Math.max(0, b.meter - 20);
-        a.hp = Math.min(100, a.hp + 8);
-        addFloatingText('28% GST DRAIN', b.x, b.y - 120, '#56d364');
-      } else {
-        addFloatingText('MISS', a.x, a.y - 120, '#888888');
-      }
-    } else if (c.specialType === 'pull') {
-      // The hook now visibly pulls the opponent in (whip window), then lands its hit when it ends.
-      if (dist < MUFFLER_HOOK.range) {
-        a.whip = MUFFLER_HOOK.duration;
-        a.hookPending = true;
-      } else {
-        addFloatingText('MISS', a.x, a.y - 120, '#888888');
-      }
-    } else if (c.specialType === 'combo') {
-      a.burstCount = 3;
-      a.burstTimer = 0;
-      a.cdSpecial = MAMATA_COMBO_COOLDOWN;
-    } else if (c.specialType === 'counter') {
-      a.counter = PARRY.window;
-      a.cdSpecial = PARRY.cooldown;
-    } else if (c.specialType === 'burn') {
-      projectilesRef.current.push({
-        id: Math.random(),
-        kind: 'flame',
-        x: a.x + a.facing * 40,
-        y: a.y - 58,
-        vx: a.facing * 380,
-        dmg: 12,
-        owner: a,
-        lifetime: 1.5
-      });
-    } else if (c.specialType === 'confuse') {
-      b.confused = KADI_NINDA.confuseSeconds;
-      if (dist < KADI_NINDA.stunRange && !b.blocking) b.stun = Math.max(b.stun, KADI_NINDA.stunSeconds);
-      addFloatingText('MOYE MOYE CONFUSION', b.x, b.y - 120, '#ff9933');
-    } else if (c.specialType === 'heal_aura') {
-      a.hp = Math.min(100, a.hp + RAHUL_HEAL.heal);
-      a.invincible = RAHUL_HEAL.invincible;
-      a.cdSpecial = RAHUL_HEAL.cooldown;
-      addFloatingText(`MOHABBAT KI DUKAAN +${RAHUL_HEAL.heal} HP`, a.x, a.y - 120, '#58a6ff');
-    }
-  };
-
-  // Political pickup line (+8 Seats)
-  const performPickupLine = (a: Combatant) => {
-    // Capped so tapping the key can no longer win the match on its own.
-    if (a.lineUses >= PICKUP_LINE.maxUses) {
-      addRefusalText('NO LINES LEFT', a.x, a.y - 120, '#9aa5b1');
-      return;
-    }
-    if (a.lineCd > 0) {
-      addRefusalText('LINE COOLING DOWN', a.x, a.y - 120, '#9aa5b1');
-      return;
-    }
-    a.lineCd = PICKUP_LINE.cooldown;
-    a.lineUses += 1;
-    playSound(600, 0.15, 'sine', 0.08, 200);
-    addFloatingText(`"${a.c.pickupLine}"`, a.x, a.y - 50, '#ffd700');
-    a.seats = Math.min(272, a.seats + PICKUP_LINE.seats);
-    addLog(a.isAI ? 'cpu' : 'me', `${a.c.name} recited a witty pickup line (+${PICKUP_LINE.seats} Seats, ${PICKUP_LINE.maxUses - a.lineUses} left)!`);
-  };
-
-  // Launch Cinematic Super Move
-  const triggerSuperMove = (a: Combatant, b: Combatant) => {
-    a.meter = 0;
-    a.attackType = 'super';
-    cinematicRef.current = { actor: a, target: b, elapsed: 0 };
-    setIsCutscene(true);
-    // The pad unmounts for the cutscene, so a held stick would never send its release: zero it now.
-    padRef.current = { p1: { dx: 0, dy: 0, block: false, jump: false }, p2: { dx: 0, dy: 0, block: false, jump: false } };
-    // Deliver authentic politician voice with acoustic meme backing
-    speakPoliticianVoice(a.c.id);
-    playSound(90, 0.6, 'sawtooth', 0.12, -30);
-  };
-
-  // Release the actual superpower into the arena after cinematic
-  const releaseSuperAbility = (a: Combatant, b: Combatant) => {
-    const k = a.c.superType;
-    const f = a.facing;
-    setIsCutscene(false);
-    stopVoice(VOICE.cutsceneFadeSeconds); // the clip is longer than the scene: fade it out instead of letting it run over the fight
-    a.surge = 1.4;
-    a.attackType = 'super';
-    cameraShakeRef.current = 16;
-    playSuperSound(k);
-    addLog(a.isAI ? 'cpu' : 'me', `SUPER: ${a.c.name} unleashes ${a.c.superName}!`);
-    if ((k === 'train' || k === 'bulldozer') && a !== combatantsRef.current?.p1) {
-      updateCoach(`JUMP [${primaryLabel('p1', 'jump')}] over the train or bulldozer to dodge it!`, coachStepRef.current);
-    }
-
-    if (k === 'train') {
-      // Vande Bharat Express Bullet Train
-      projectilesRef.current.push({
-        id: Math.random(),
-        kind: 'train',
-        x: f > 0 ? -180 : STAGE_WIDTH + 180,
-        y: FLOOR_Y - 8,
-        vx: f * 920,
-        dmg: 35,
-        owner: a,
-        lifetime: 2.2,
-        width: 270,
-        hitOnce: true
-      });
-    } else if (k === 'chain') {
-      // Chanakya Constitutional Lockdown
-      b.freeze = SHAH_FREEZE_SECONDS;
-      handleHit(a, b, SHAH_CHAIN_DMG, 0, true);
-      a.chain = 3;
-    } else if (k === 'gst_blocks') {
-      // Budget Deficit Stamp & GST Block Rain
-      a.rain = SUPER_TICK.gst_blocks.duration;
-      a.hp = Math.min(100, a.hp + 14);
-      a.rainTimer = 0;
-      addFloatingText('GST RAIN +14 HP', a.x, a.y - 130, '#56d364');
-    } else if (k === 'dharna') {
-      // Dharna Electric Vortex & Broom Whirlwind
-      a.invincible = Math.min(SUPER_TICK.dharna.duration, DHARNA_INVINCIBLE_SECONDS);
-      a.surge = 4;
-      a.rain = SUPER_TICK.dharna.duration;
-      a.rainTimer = 0;
-    } else if (k === 'khela_volley') {
-      // Khela Hobe Football Volley
-      for (let i = 0; i < 5; i++) {
-        projectilesRef.current.push({
-          id: Math.random(),
-          kind: 'ball',
-          x: a.x + f * 30,
-          y: a.y - 70,
-          vx: f * (220 + i * 75),
-          vy: -200 - i * 65,
-          dmg: 8,
-          owner: a,
-          lifetime: 5,
-          bounceCount: 4
-        });
-      }
-    } else if (k === 'veto') {
-      // Veto of Elders
-      handleHit(a, b, 16, 160, true);
-      b.cdSpecial = VETO.silenceSeconds;
-      b.meter = 0;
-      b.stun = VETO.stun;
-      addFloatingText('SILENCED & VETOED', b.x, b.y - 130, '#ffffff');
-    } else if (k === 'bulldozer') {
-      // Yogi's JCB Bulldozer
-      projectilesRef.current.push({
-        id: Math.random(),
-        kind: 'bulldozer',
-        x: a.x,
-        y: FLOOR_Y - 20,
-        vx: f * 620,
-        dmg: 38,
-        owner: a,
-        lifetime: 2.0,
-        width: 170,
-        hitOnce: true
-      });
-    } else if (k === 'aloo_gold') {
-      // Rahul's Aloo-Sona Machine: Explosive 24K Gold Coin Shower
-      for (let i = 0; i < 7; i++) {
-        schedule(i * 0.14, () => {
-          projectilesRef.current.push({
-            id: Math.random(),
-            kind: 'gold_coin',
-            x: a.x + f * 35,
-            y: a.y - 65,
-            vx: f * (260 + i * 40),
-            vy: (Math.random() - 0.5) * 80,
-            dmg: 6,
-            owner: a,
-            lifetime: 3
-          });
-        });
-      }
-    } else if (k === 'rafale') {
-      // Rajnath's Moye-Moye Rafale Strike
-      for (let i = 0; i < RAFALE.missiles; i++) {
-        schedule((i * RAFALE.gapMs) / 1000, () => {
-          projectilesRef.current.push({
-            id: Math.random(),
-            kind: 'missile',
-            x: b.x + (Math.random() - 0.5) * 2 * RAFALE.spreadPx,
-            y: -20,
-            vx: 0,
-            vy: 420,
-            dmg: RAFALE.dmg,
-            owner: a,
-            lifetime: 2
-          });
-        });
-      }
-    }
-  };
-
-  // Collect canteen power-ups
-  const collectPowerUp = (combatant: Combatant, pu: PowerUp) => {
-    playSound(880, 0.15, 'triangle', 0.08, 300);
-    const opponent = combatant === combatantsRef.current?.p1 ? combatantsRef.current?.p2 : combatantsRef.current?.p1;
-
-    if (pu.type === 'case') {
-      combatant.meter = Math.min(100, combatant.meter + 50);
-      combatant.cdSpecial = 0;
-      addFloatingText('+50 SUPER METER', combatant.x, combatant.y - 120, '#ffd700');
-    } else if (pu.type === 'cup') {
-      combatant.hp = Math.min(100, combatant.hp + 30);
-      addFloatingText('+30 HP KULLAD CHAI', combatant.x, combatant.y - 120, '#56d364');
-    } else if (pu.type === 'gavel') {
-      combatant.damageBoost = 8;
-      addFloatingText('1.5x GAVEL POWER', combatant.x, combatant.y - 120, '#ff9933');
-    } else if (pu.type === 'mic') {
-      combatant.blast = 0.5;
-      if (opponent && Math.abs(combatant.x - opponent.x) < 260) {
-        opponent.vx = (opponent.x > combatant.x ? 1 : -1) * 540;
-        opponent.vy = -200;
-        opponent.hp = Math.max(0, opponent.hp - 8);
-        opponent.stun = 0.35;
-      }
-      addFloatingText('RADIAL SPEAKER BLAST', combatant.x, combatant.y - 120, '#ffffff');
-    }
-
-    addLog(combatant.isAI ? 'cpu' : 'me', `${combatant.c.name} collected ${pu.type.toUpperCase()}`);
-  };
+  // Thin wrappers that build the world and delegate to the extracted module
+  const handleHit = (attacker: Combatant, defender: Combatant, baseDamage: number, baseKnockback: number, unblockable = false) =>
+    combatHandleHit(getWorld(), attacker, defender, baseDamage, baseKnockback, unblockable);
+  const performStrike = (a: Combatant, b: Combatant) => combatPerformStrike(getWorld(), a, b);
+  const performSpecial = (a: Combatant, b: Combatant) => combatPerformSpecial(getWorld(), a, b);
+  const performPickupLine = (a: Combatant) => combatPerformPickupLine(getWorld(), a);
+  const triggerSuperMove = (a: Combatant, b: Combatant) => combatTriggerSuperMove(getWorld(), a, b);
+  const releaseSuperAbility = (a: Combatant, b: Combatant) => combatReleaseSuperAbility(getWorld(), a, b);
+  const collectPowerUp = (combatant: Combatant, pu: PowerUp) => combatCollectPowerUp(getWorld(), combatant, pu);
+  const addFloatingText = (text: string, x: number, y: number, color: string) => combatAddFloatingText(getWorld(), text, x, y, color);
 
   // Start new match
   const startMatch = (p1Politician: Politician, p2Politician: Politician) => {
@@ -1670,43 +1317,6 @@ export default function App() {
     return () => cancelAnimationFrame(animId);
   }, [gameState, is2PlayerMode, addLog, updateCoach, publishDecision]);
 
-  // Render Speaker Mascot in Sidebar
-  useEffect(() => {
-    if (!mascotCanvasRef.current) return;
-    const canvas = mascotCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Draw Om Birla Speaker Bust
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2 + 10);
-    // Dark bandhgala / khadi vest
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-14, -8, 28, 20);
-    ctx.fillStyle = '#1b3b22';
-    ctx.fillRect(-12, -7, 24, 18);
-    // Head & face
-    ctx.fillStyle = '#dfa672';
-    ctx.beginPath();
-    ctx.arc(0, -18, 12, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-    // Salt and pepper hair
-    ctx.fillStyle = '#78909c';
-    ctx.beginPath();
-    ctx.arc(0, -20, 13, Math.PI * 0.95, Math.PI * 2.05);
-    ctx.fill();
-    // Eyeglasses
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = 1.6;
-    ctx.strokeRect(-7, -20, 6, 4.5);
-    ctx.strokeRect(1, -20, 6, 4.5);
-    // Mustache
-    ctx.fillStyle = '#333';
-    ctx.fillRect(-5, -14, 10, 2);
-    ctx.restore();
-  }, []);
-
   const handleVirtualAction = (player: 1 | 2, action: PadAction) => {
     if (!combatantsRef.current || isPausedRef.current || cinematicRef.current) return;
     const me = player === 1 ? combatantsRef.current.p1 : combatantsRef.current.p2;
@@ -1761,10 +1371,8 @@ export default function App() {
     if (gameState === 'play') setPause('rules', true);
     setIsRulebookOpen(true);
   };
-  const drawerRef = useRef<HTMLElement | null>(null);
-  // The telemetry panel is a dialog only in its phone form (a slide-in drawer over the arena); on desktop it is a plain sidebar.
-  const drawerIsDialog = isMobileTelemetryOpen && gameState !== 'menu' && viewportDims.w < 1024;
-  useModalA11y(drawerRef, { active: drawerIsDialog, onClose: () => setIsMobileTelemetryOpen(false) });
+  // The telemetry panel is a dialog only in its phone form; on desktop it is a plain sidebar.
+  // (Now handled inside TelemetrySidebar component)
 
   const closeRulebook = () => {
     setPause('rules', false);
@@ -2015,271 +1623,40 @@ export default function App() {
         )}
       </div>
 
-      {/* Mobile Telemetry Drawer Backdrop */}
-      {isMobileTelemetryOpen && gameState !== 'menu' && (
-        <div
-          onClick={() => setIsMobileTelemetryOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden animate-in fade-in duration-200"
+      <TelemetrySidebar
+          gameState={gameState}
+          is2PlayerMode={is2PlayerMode}
+          isDesktopSidebarOpen={isDesktopSidebarOpen}
+          isMobileTelemetryOpen={isMobileTelemetryOpen}
+          viewportWidth={viewportDims.w}
+          activeDecisionTreeAction={activeDecisionTreeAction}
+          treeUtilityScores={treeUtilityScores}
+          activeDecision={activeDecision}
+          isVoiceOn={isVoiceOn}
+          isCoachOn={isCoachOn}
+          isGamepadVisible={isGamepadVisible}
+          musicVolume={musicVolume}
+          isMusicMuted={isMusicMuted}
+          onSetVoiceOn={(v) => { setIsVoiceOn(v); setVoiceEnabled(v); }}
+          onSetCoachOn={setIsCoachOn}
+          onSetGamepadVisible={setIsGamepadVisible}
+          onSetMusicVolume={setMusicVolume}
+          onSetMusicMuted={setIsMusicMuted}
+          onOpenInspector={() => {
+            if (is2PlayerMode) return;
+            const latest = latestDecisionRef.current ?? activeDecision;
+            if (latest) {
+              publishDecision(latest, performance.now());
+              setInspectorSpeakerId(combatantsRef.current?.p2.c.id);
+              setPause('inspector', true);
+              setIsInspectorOpen(true);
+            }
+          }}
+          onOpenRulebook={openRulebook}
+          onCloseMobileDrawer={() => setIsMobileTelemetryOpen(false)}
+          onCloseDesktopSidebar={() => setIsDesktopSidebarOpen(false)}
+          logContainerRef={logContainerRef}
         />
-      )}
-
-      {/* Right Telemetry & Explainable AI Console */}
-      <aside
-        ref={drawerRef}
-        role={drawerIsDialog ? 'dialog' : undefined}
-        aria-modal={drawerIsDialog ? true : undefined}
-        aria-label={drawerIsDialog ? 'AI telemetry' : undefined}
-        className={`${
-          gameState === 'menu'
-            ? 'hidden' // the map screen has no match to report; stays mounted so the log is ready when a match starts
-            : `${isDesktopSidebarOpen ? 'lg:flex' : 'lg:hidden'} ${
-                isMobileTelemetryOpen
-                  ? 'fixed inset-y-0 right-0 z-50 w-full max-w-sm flex shadow-2xl animate-in slide-in-from-right duration-200'
-                  : 'hidden'
-              }`
-        } lg:relative lg:flex-[32_1_0] lg:max-w-[420px] bg-[#0f1a14] border-t-2 lg:border-t-0 lg:border-l-2 border-[#1e3327] flex-col p-3 [@media(max-height:740px)]:p-2 gap-2 [@media(max-height:740px)]:gap-1 overflow-y-auto shrink-0`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-2 border-b border-[#1e3327]">
-          <h2 className="text-sm font-extrabold text-[#ffd700] flex items-center gap-1.5 font-serif tracking-tight">
-            <Landmark size={16} className="text-[#ffd700]" /> Speaker AI Telemetry
-          </h2>
-          <div className="flex items-center gap-2">
-            <a
-              href="https://github.com/rupac4530-creator/battle-of-272-parliament"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#8ea396] hover:text-[#56d364] transition-all flex items-center gap-1 text-[11px] font-mono hover:scale-105"
-              title="GitHub Repository"
-            >
-              <Github size={13} /> GitHub
-            </a>
-            <span className="text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-[#138808]/25 border border-[#138808] text-[#56d364] tracking-wider">
-              {is2PlayerMode ? 'PVP REFEREE' : 'SELF-EXPLAINING CODE'}
-            </span>
-            {/* Close Button on Mobile Drawer */}
-            <button
-              type="button"
-              onClick={() => setIsMobileTelemetryOpen(false)}
-              className="p-1 rounded-lg glass hover:bg-white/10 text-[#8ea396] hover:text-white lg:hidden ml-1"
-              aria-label="Close Telemetry Drawer"
-            >
-              <X size={16} />
-            </button>
-            {/* Collapse Button on Desktop */}
-            <button
-              type="button"
-              onClick={() => setIsDesktopSidebarOpen(false)}
-              className="p-1 rounded-lg glass hover:bg-white/10 text-[#8ea396] hover:text-white hidden lg:flex ml-1"
-              title="Minimize Sidebar (Theater View)"
-              aria-label="Minimize sidebar (Theater View)"
-            >
-              <PanelRightClose size={16} />
-            </button>
-          </div>
-        </div>
-
-        {/* Real-Time Live Decision Tree Visualizer */}
-        <div className="glass-dark border border-[#1e3327] rounded-xl p-2.5">
-          <div className="flex justify-between items-center text-[11px] font-bold text-[#ffd700] mb-1.5">
-            <span className="flex items-center gap-1.5"><Brain size={13} /> LIVE DECISION TREE</span>
-            <span className="text-[#56d364] font-mono">
-              {actionLabel(activeDecisionTreeAction).toUpperCase()} (
-              {treeUtilityScores[activeDecisionTreeAction] >= 0 ? '+' : ''}
-              {Math.round(treeUtilityScores[activeDecisionTreeAction] ?? 0)})
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {[
-              { id: 'Strike', label: 'Strike', icon: <Swords size={11} /> },
-              { id: 'Special', label: 'Special', icon: <Zap size={11} /> },
-              { id: 'Super', label: 'Super', icon: <Flame size={11} /> },
-              { id: 'Block', label: 'Block', icon: <Shield size={11} /> },
-              { id: 'Approach', label: 'Approach', icon: <ArrowLeftRight size={11} /> },
-              { id: 'Retreat', label: 'Retreat', icon: <Undo2 size={11} /> },
-              { id: 'Podium', label: actionLabel('Podium'), icon: <Landmark size={11} /> },
-              { id: 'Pickup', label: actionLabel('Pickup'), icon: <Coffee size={11} /> },
-              { id: 'PickupLine', label: actionLabel('PickupLine'), icon: <Mic size={11} /> }
-            ].map(node => {
-              const isActive = activeDecisionTreeAction === node.id;
-              const val = Math.round(treeUtilityScores[node.id] ?? 0);
-              return (
-                <div
-                  key={node.id}
-                  className={`px-2 py-1.5 rounded-lg text-[11px] border flex justify-between items-center transition-all duration-200 ${
-                    isActive
-                      ? 'glass border-[#ffd700] text-white font-bold shadow-[0_0_12px_rgba(255,215,0,0.25)]'
-                      : 'bg-[#0d1a13] border-[#1a2e22] text-[#8ea396] hover:border-[#2a4e3a]'
-                  }`}
-                >
-                  <span className="flex items-center gap-1">{node.icon} {node.label}</span>
-                  <span className={`font-mono font-bold ${isActive ? 'text-[#56d364]' : 'text-[#8ea396]'}`}>
-                    {val >= 0 ? `+${val}` : val}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Action Controls & Toggles */}
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            type="button"
-            aria-disabled={inspectDisabledReason(is2PlayerMode, !!activeDecision) !== null}
-            title={inspectDisabledReason(is2PlayerMode, !!activeDecision) ?? 'See why the CPU chose its last move'}
-            onClick={() => {
-              if (is2PlayerMode) return;
-              const latest = latestDecisionRef.current ?? activeDecision;
-              if (latest) {
-                publishDecision(latest, performance.now());
-                setInspectorSpeakerId(combatantsRef.current?.p2.c.id);
-                setPause('inspector', true);
-                setIsInspectorOpen(true);
-              }
-            }}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold glass border border-[#ffd700]/40 text-[#ffd700] transition-all flex items-center justify-center gap-1.5 ${
-              inspectDisabledReason(is2PlayerMode, !!activeDecision) !== null
-                ? 'opacity-45 cursor-not-allowed'
-                : 'hover:bg-[#294234] hover:scale-[1.03]'
-            }`}
-          >
-            <Brain size={14} /> Why Did You Do That?
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const next = !isVoiceOn;
-              setIsVoiceOn(next);
-              setVoiceEnabled(next);
-            }}
-            title="Plays the recorded voice clip of each leader (on the map and during supers)"
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
-              isVoiceOn
-                ? 'bg-[#1f4e35] border-[#56d364] text-white'
-                : 'glass border-[#1e3327] text-[#8ea396]'
-            }`}
-          >
-            <Mic size={14} /> Voice clips: {isVoiceOn ? 'ON' : 'OFF'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsCoachOn(!isCoachOn)}
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
-              isCoachOn
-                ? 'bg-[#1f4e35] border-[#56d364] text-white'
-                : 'glass border-[#1e3327] text-[#8ea396]'
-            }`}
-          >
-            <GraduationCap size={14} /> Rule Coach: {isCoachOn ? 'ON' : 'OFF'}
-          </button>
-
-          <button
-            type="button"
-            onClick={openRulebook}
-            className="px-2.5 py-1.5 rounded-lg text-xs font-bold glass hover:bg-[#294234] border border-[#1e3327] text-[#f5eedb] transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5"
-          >
-            <BookOpen size={14} /> Rulebook
-          </button>
-        </div>
-
-        {/* Music: mute + volume */}
-        <div className="flex items-center gap-2 glass-dark border border-[#1e3327] rounded-lg px-2 py-1">
-          <button
-            type="button"
-            onClick={() => setIsMusicMuted(m => !m)}
-            aria-label={isMusicMuted ? 'Unmute music' : 'Mute music'}
-            aria-pressed={isMusicMuted}
-            title={isMusicMuted ? 'Unmute music' : 'Mute music'}
-            className={`shrink-0 w-11 h-11 rounded-lg border flex items-center justify-center transition-all hover:scale-[1.05] ${
-              isMusicMuted
-                ? 'glass border-[#1e3327] text-[#8ea396]'
-                : 'bg-[#1f4e35] border-[#56d364] text-white'
-            }`}
-          >
-            {isMusicMuted || musicVolume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={AUDIO_UI.musicSliderStep}
-            value={musicVolume}
-            onChange={e => {
-              const v = Number(e.target.value);
-              setMusicVolume(v);
-              if (v > 0) setIsMusicMuted(false); // moving the slider up un-mutes
-            }}
-            aria-label="Music volume"
-            className="flex-1 min-w-0 h-11 accent-[#56d364] cursor-pointer"
-          />
-          <span className="shrink-0 w-10 text-right text-xs font-mono text-[#8ea396]">
-            {isMusicMuted ? 'MUTE' : `${Math.round(musicVolume * 100)}%`}
-          </span>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setIsGamepadVisible(!isGamepadVisible)}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all hover:scale-[1.03] flex items-center justify-center gap-1.5 ${
-              isGamepadVisible
-                ? 'bg-[#1f4e35] border-[#56d364] text-white'
-                : 'glass border-[#1e3327] text-[#8ea396]'
-            }`}
-          >
-            <Gamepad2 size={14} /> On-Screen Gamepad: {isGamepadVisible ? 'ON' : 'OFF'}
-          </button>
-        </div>
-
-        {/* Real-Time Telemetry Log Stream */}
-        <div
-          ref={logContainerRef}
-          className="flex-1 min-h-[110px] [@media(max-height:800px)]:min-h-[64px] max-h-[160px] overflow-y-auto glass-dark border border-[#1e3327] rounded-xl p-2 font-mono flex flex-col gap-1.5"
-        />
-
-        {/* Speaker Om Birla Referee Mascot */}
-        <div className="glass-dark border border-[#1e3327] rounded-xl p-2.5 flex items-center gap-2.5 shrink-0">
-          <canvas
-            ref={mascotCanvasRef}
-            width={44}
-            height={44}
-            className="w-11 h-11 rounded-full border-2 border-[#ffd700] bg-[#15221b] shrink-0"
-          />
-          <div className="flex-1 text-[11px] leading-tight">
-            <div className="font-extrabold text-[#ffd700] flex items-center gap-1">
-              <Landmark size={11} /> Speaker Om Birla
-            </div>
-            <div className="text-[#d8e5dc] italic mt-0.5">
-              "Order in the House! Members must strictly follow Rule 267 and debate with dignity!"
-            </div>
-          </div>
-        </div>
-
-        {/* Legend */}
-        <div className="grid grid-cols-2 gap-1.5 text-[11px] text-[#8ea396] pt-1 border-t border-[#1e3327]">
-          <span className="flex items-center gap-1"><Briefcase size={10} className="text-[#ffd700]" /> Briefcase: +50 Meter</span>
-          <span className="flex items-center gap-1"><Coffee size={10} className="text-[#56d364]" /> Chai: +30 HP Heal</span>
-          <span className="flex items-center gap-1"><Scroll size={10} className="text-[#ff9933]" /> Gavel: 1.5x Dmg Boost</span>
-          <span className="flex items-center gap-1"><Mic size={10} className="text-[#58a6ff]" /> Mic: Radial Sound Blast</span>
-        </div>
-
-        {/* Key Bindings */}
-        <div className="text-[11px] text-[#8ea396] pt-1 border-t border-[#1e3327] leading-tight">
-          <b className="text-white">P1:</b> {controlsSummary('p1')}.
-          <br />
-          <b className="text-white">P2:</b> {controlsSummary('p2')}.
-          <br />
-          <b className="text-[#ffd700]">Win:</b> 0 HP Knockout OR capture 272 Majority Seats on the podium!
-        </div>
-
-        {/* Parody notice */}
-        <p className="text-[11px] text-[#8ea396] pt-1 border-t border-[#1e3327] leading-tight">
-          {PARODY_NOTICE}
-        </p>
-      </aside>
     </div>
   );
 }
