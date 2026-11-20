@@ -31,29 +31,29 @@
 ## 🎬 Gameplay Trailer & Visual Tour
 
 ### ⚡ Official Gameplay Edit (Watch Full Video)
-![Parliament House Gameplay Demo](media_clips/battle-of-272-gameplay-edit.gif)
+![Parliament House Gameplay Demo](public/media_clips/battle-of-272-gameplay-edit.gif)
 
 > 🎥 **Download & Watch Video Clips (1080p MP4):**
-> * 🎬 **[Download / Watch Gameplay Edit (1080p MP4)](media_clips/battle-of-272-gameplay-edit.mp4)** — Edited highlights of 18th Lok Sabha combat, specials, and AI showdown.
-> * 🚀 **[Boot Protocol Intro Sequence (1080p MP4)](media_clips/video_clips/01_boot_protocol_intro.mp4)** — Satirical startup sequence with cartoon leaders and seat counter.
-> * 🥊 **[Full Raw Gameplay Trailer (1080p MP4)](media_clips/video_clips/02_parliament_gameplay_trailer.mp4)** — High-action combat, specials, Chai drops, and podium capture.
+> * 🎬 **[Download / Watch Gameplay Edit (1080p MP4)](public/media_clips/battle-of-272-gameplay-edit.mp4)** — Edited highlights of 18th Lok Sabha combat, specials, and AI showdown.
+> * 🚀 **[Boot Protocol Intro Sequence (1080p MP4)](public/media_clips/video_clips/01_boot_protocol_intro.mp4)** — Satirical startup sequence with cartoon leaders and seat counter.
+> * 🥊 **[Full Raw Gameplay Trailer (1080p MP4)](public/media_clips/video_clips/02_parliament_gameplay_trailer.mp4)** — High-action combat, specials, Chai drops, and podium capture.
 
 ---
 
 ### 1. 18th Lok Sabha Boot Protocol (Cartoon Leaders Backdrop)
-![18th Lok Sabha Boot Protocol](media_clips/image_clips/01_boot_protocol_cartoon_leaders.png)
+![18th Lok Sabha Boot Protocol](public/media_clips/image_clips/01_boot_protocol_cartoon_leaders.png)
 > **What it shows:** The satirical startup boot sequence with all-star cartoon Indian leaders in front of the Parliament House. Features a real-time tally counting up to 272 majority seats, an animated spinning Ashoka Chakra, Speaker Om Birla gavel slam, and 7 rotating humorous parliamentary updates.
 
 ---
 
 ### 2. Interactive Map of India (Neta Selection Screen)
-![Interactive Map of India](media_clips/image_clips/02_india_map_character_select.png)
+![Interactive Map of India](public/media_clips/image_clips/02_india_map_character_select.png)
 > **What it shows:** The geographic character selection screen with an accurate SVG projection of India. Netas sit pinned on their home constituencies with live voice previews ("Play Voice"), dossier cards, and the astronaut Modi background with glass-morphic menus.
 
 ---
 
 ### 3. The Lok Sabha Chamber Arena & Explainable AI (XAI)
-![Lok Sabha Chamber Arena](media_clips/image_clips/03_lok_sabha_3d_battle_arena.png)
+![Lok Sabha Chamber Arena](public/media_clips/image_clips/03_lok_sabha_3d_battle_arena.png)
 > **What it shows:** Active combat in the well of the House between Narendra Modi and Yogi Adityanath. Highlights:
 > - **Central 272 Podium:** Stand on the podium to capture seats for an instant political victory.
 > - **Live Decision Tree (Right Sidebar):** Displays the bot's mathematical Expected Value (EV) calculation across 8 choices in real-time.
@@ -62,13 +62,13 @@
 ---
 
 ### 4. Explainable AI Decision Inspector ("Why Did You Do That?")
-![Explainable AI Inspector](media_clips/image_clips/04_explainable_ai_decision_inspector.png)
+![Explainable AI Inspector](public/media_clips/image_clips/04_explainable_ai_decision_inspector.png)
 > **What it shows:** Full explainability dialog dissecting the CPU's combat choices with mathematical utility hierarchies, active telemetry snapshot (distance, HP, super meter, seats), and interactive counterfactual reasoning questions (*"Why didn't you do something else?"*).
 
 ---
 
 ### 5. Parliament Rules of Engagement (Rule 267)
-![Rule 267 Modal](media_clips/image_clips/05_rule_267_parliament_rulebook.png)
+![Rule 267 Modal](public/media_clips/image_clips/05_rule_267_parliament_rulebook.png)
 > **What it shows:** The illustrated parliamentary rulebook outlining the dual win conditions (0 HP Knockout vs. 272 Majority Seats), signature move mechanics, Parliament Canteen drops, and pickup line rules.
 
 ---

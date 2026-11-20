@@ -12,6 +12,10 @@ previews*/
 # Pipeline apply script (one-time use)
 tools/apply_pipeline.py
 
+# Root-level media duplicates (the real copies live in public/ where Vite serves them)
+/media_clips/
+/EPIC_GAMEPLAY_CLIPS_AND_PICTURES/
+
 __pycache__/
 tools/__pycache__/
 
