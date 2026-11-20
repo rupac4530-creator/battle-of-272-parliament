@@ -9,7 +9,7 @@
  */
 import { Politician } from './types';
 import { collectRig, disableCulling } from './rigBones';
-import { MODI_STANCE } from './modiStance';
+import { MODI_STANCE, MODI_HIPS_DROP } from './modiStance';
 import { sample, blend, limitPose, type Pose } from './animLib';
 import { LIMITS } from './limitsTable';
 import { REACTION_CLIPS } from './reactionClips';
@@ -18,15 +18,17 @@ import { STANCE_CLIPS } from './stanceClips';
 import { JUMP_CLIPS } from './jumpClips';
 import { HIT_CLIPS } from './hitClips';
 import { STRIKE_CLIPS } from './attackClips';
+import { TUNE, retargetModi, withStride, withKick, withPunchLegs, withBlockLegs, withHitLegs, withStunLegs, withDropkick } from './modiRetarget';
 
 export interface Pose3D {
   time?: number; isWalking?: boolean; attackProg?: number; attackPhase?: number;
   airborne?: boolean; blocking?: boolean; stunned?: boolean;
+  attackType?: string; isSuper?: boolean;   // Part 6-2: Modi picks punch / cross / kick from this
 }
 
 const SZ = 384, PX = 87, FEET = 285, DRAW = 2 / 3, TAU = Math.PI * 2;
 let T: any = null, renderer: any, scene: any, cam: any, glCanvas: HTMLCanvasElement;
-let ready = false, failed = false, started = false, modiFbx: any = null;
+let ready = false, failed = false, started = false, modiFbx: any = null, modiLock = 0.6;
 const rigs = new Map<string, any>();
 const GLB_IDS = new Set(['shah', 'rahul', 'yogi', 'rajnath', 'sitharaman', 'kharge', 'kejriwal', 'mamata']);
 const glbRigs = new Map<string, any>();      // loaded model rigs by fighter id
@@ -80,11 +82,25 @@ async function loadModi() {
       if (new URLSearchParams(location.search).get('modi') !== 'tpose') {
         let posed = 0;
         obj.traverse((o: any) => { const q = o.isBone ? MODI_STANCE[o.name] : undefined; if (q) { o.quaternion.set(q[0], q[1], q[2], q[3]); posed++; } });
+        // Leg fix: bent knees need a lower pelvis, otherwise the feet lift off the floor or the legs overstretch.
+        const hips = obj.getObjectByName('Hips'); if (hips) hips.position.y -= MODI_HIPS_DROP;
         obj.updateMatrixWorld(true);
         if (posed < 20) console.warn('Modi stance: only posed', posed, 'bones');
       }
       const root = new T.Group(); root.add(wrap);
-      modiFbx = { root, body: wrap, a: null };
+      // Part 6-1: keep the 87 bones so the clip player can drive them (idle + walk). ?modi=tpose or ?rig=off keep him static.
+      const mq = new URLSearchParams(location.search);
+      // Part 6-4: browser tuning knobs, e.g. ?modiStride=0.6&modiKick=0.85&modiDrop=0.8&modiLock=0.4 (1 = as designed, lock default 0.6)
+      const num = (k: string, d: number) => { const v = parseFloat(mq.get(k) || ''); return isFinite(v) && v >= 0 && v <= 2 ? v : d; };
+      TUNE.stride = num('modiStride', 1); TUNE.kick = num('modiKick', 1); TUNE.drop = num('modiDrop', 1); modiLock = num('modiLock', 0.6);
+      const mbones: Record<string, any> = {};
+      obj.traverse((o: any) => { if (o.isBone && !(o.name in mbones)) mbones[o.name] = o; });
+      const mh = mbones['Hips'] && mbones['Hips'].position;
+      modiFbx = {
+        root, body: wrap, a: null, modi: true, bones: mbones, anim: null,
+        hipsRest: mh ? [mh.x, mh.y, mh.z] as [number, number, number] : undefined,
+        clipsOn: mq.get('modi') !== 'tpose' && mq.get('rig') !== 'off' && !!mbones['Hips'] && !!mbones['LeftFoot'],
+      };
       rigs.delete('modi');
       notify();
     });
@@ -281,10 +297,76 @@ function poseRigged(r: any, id: string, p: Pose3D): boolean {
   return true;
 }
 
+/** Part 6-4: the game applies the hit when the punch starts. 1.5 = the fist lands at 27% of the strike (was 47%), then he holds the guard. */
+const JAB_SPEED = 1.5;
+const MODI_IDLE0: Pose = STANCE_CLIPS['idle'].keys[0].pose;
+/** Part 6-1: back to the fixed stance (static pose from the leg fix), used when a state is not clip-driven yet. */
+function restoreModiStance(r: any) {
+  for (const n in r.bones) { const q = MODI_STANCE[n]; if (q) r.bones[n].quaternion.set(q[0], q[1], q[2], q[3]); }
+  const h = r.bones.Hips; if (h && r.hipsRest) h.position.set(r.hipsRest[0], r.hipsRest[1], r.hipsRest[2]);
+}
+/** Modi idle, walk, punch, kick, jump, dropkick, block, hit and stun from the shared clips (Parts 6-1 to 6-3), retargeted onto his 87 bones, with a ground lock.
+ *  Returns false for specials and supers, which keep the old whole-body motion. */
+function poseModi(r: any, p: Pose3D): boolean {
+  if (!r.clipsOn) return false;
+  const ap = p.attackPhase ?? (p.attackProg ? 0.5 : 0);
+  const at = p.attackType, t = p.time || 0;
+  const jab = STRIKE_CLIPS['rahul'];   // shared jab clip (left arm); Modi has none of his own yet
+  const jumping = !!p.airborne && !p.stunned && !!JUMP_CLIPS['jump_rise'] && !p.isSuper;
+  const dropkick = jumping && ap > 0 && at === 'dropkick';
+  const strike = !p.airborne && !p.stunned && !p.blocking && !p.isSuper && ap > 0 && (at === 'kick' || ((at === 'punch' || at === 'cross') && !!jab));
+  // specials and supers (and anything else mid-attack) keep the old whole-body motion
+  if (p.isSuper || (ap > 0 && !strike && !dropkick && !p.stunned && !p.blocking)) { if (r.anim) { restoreModiStance(r); r.anim = null; } return false; }
+  if (p.stunned && !r.stunSince) r.stunSince = t;
+  if (!p.stunned) r.stunSince = 0;
+  const hitT = p.stunned ? t - r.stunSince : 99;
+  const hitting = hitT < 0.22 && !!HIT_CLIPS['hit_light'];
+  if (jumping && !r.jumpSince) r.jumpSince = t;
+  if (!jumping) r.jumpSince = 0;
+  const jt = jumping ? t - r.jumpSince : 0;
+  const walking = !!p.isWalking;
+  const name = jumping ? (dropkick ? 'dropkick' : jt < 0.3 ? 'jump_rise' : 'jump_fall') : hitting ? 'hit_light' : strike ? (at === 'kick' ? 'kick' : 'jab')
+    : p.stunned ? 'stun' : p.blocking ? 'block_hold' : walking ? 'walk_fwd' : 'idle';
+  const L = LIMITS['modi'] || { leg: 1, arm: 1 };
+  const sc = { thigh: L.leg, knee: L.leg, foot: L.leg, arm_raise: L.arm, elbow: L.arm, wrist: L.arm };
+  let cur: Pose;
+  if (name === 'kick') cur = withKick(MODI_IDLE0, ap);
+  else if (name === 'jab') { const ct = Math.min(jab.duration, Math.max(0, 0.3 * ap * JAB_SPEED - 0.02)); cur = withPunchLegs(sample(jab, ct), ct / jab.duration); }
+  else if (name === 'jump_rise' || name === 'jump_fall' || name === 'dropkick') {
+    const c = JUMP_CLIPS[name === 'jump_fall' ? 'jump_fall' : 'jump_rise'];
+    const jc = name === 'jump_fall' ? Math.min(c.duration, jt - 0.3) : Math.min(c.duration, jt);
+    cur = sample(c, Math.max(0, jc)); if (name === 'dropkick') cur = withDropkick(cur, ap);
+  }
+  else if (name === 'hit_light') { const c = HIT_CLIPS['hit_light']; cur = withHitLegs(sample(c, Math.min(c.duration, hitT)), hitT / c.duration); }
+  else if (name === 'stun') { const c = REACTION_CLIPS['stun']; cur = withStunLegs(sample(c, t % c.duration), t); }
+  else if (name === 'block_hold') { const c = REACTION_CLIPS['block_hold']; cur = withBlockLegs(sample(c, t % c.duration)); }
+  else { const clip = STANCE_CLIPS[name]; cur = sample(clip, t % clip.duration); if (walking) cur = withStride(cur, t); }
+  cur = limitPose(cur, sc);
+  const st = r.anim || (r.anim = { name, since: t, from: null as Pose | null, last: cur });
+  if (st.name !== name) { st.from = st.last; st.name = name; st.since = t; }
+  const fast = strike || dropkick || hitting;
+  const k = (t - st.since) / (fast ? 0.06 : 0.15);   // strikes and hits fade in fast so they are not swallowed
+  const out = st.from && k < 1 ? blend(st.from, cur, k * k * (3 - 2 * k)) : cur;
+  st.last = out;
+  const h = r.bones.Hips;
+  if (r.footRest === undefined) r.footRest = footMinY(r);
+  if (r.hipsScale === undefined) { const v = new (h.position.constructor as any)(); h.parent && h.parent.getWorldScale(v); r.hipsScale = v.y > 1e-6 ? v.y : 1; }
+  const loc = retargetModi(out, MODI_IDLE0);
+  for (const n in loc) { const b = r.bones[n]; if (b) { const q = loc[n]; b.quaternion.set(q[0], q[1], q[2], q[3]); } }
+  h.position.set(r.hipsRest[0] + out.root[0], r.hipsRest[1] + out.root[1], r.hipsRest[2] + out.root[2]);
+  if (!jumping && r.footRest !== null) {
+    // lock the lower foot to the floor: full strength when standing still (block, hit, stun, idle), 60% while walking so the pelvis bobs like a real step
+    const d = Math.max(-0.2, Math.min(0.2, r.footRest - (footMinY(r) ?? r.footRest))) * (walking && !strike ? modiLock : 1);
+    h.position.y += d / r.hipsScale;
+  }
+  return true;
+}
+
 function pose(r: any, p: Pose3D, id = '') {
   const t = p.time || 0, ph = t * 11, s = Math.sin(ph), cs = Math.cos(ph);
   const a = p.attackPhase ?? (p.attackProg ? 0.5 : 0);
   if (poseRigged(r, id, p)) { r.body.position.set(0, 0, 0); r.body.rotation.set(0, 0, 0); return; }
+  if (r.modi && poseModi(r, p)) { r.body.position.set(0, 0, 0); r.body.rotation.set(0, 0, 0); return; }
   let bob = Math.sin(t * 2.2) * 0.008, lean = -0.04 + Math.sin(t * 1.3) * 0.015, twist = 0, head = 0, lunge = 0;
   let lL = 0, lR = 0, kL = 0, kR = 0, sL = 0.08, sR = 0.08, eL = 0.25, eR = 0.25;
   if (p.stunned) { lean = 0.38; head = 0.3; sL = sR = -0.7; eL = eR = 0.2; lL = 0.2; lR = -0.3; kL = 0.3; kR = 0.4; bob = -0.02; }
