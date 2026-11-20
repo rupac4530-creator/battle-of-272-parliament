@@ -98,6 +98,7 @@ import {
 } from './game/audio';
 import { IndiaMapSelect } from './components/IndiaMapSelect';
 import { VersusCard } from './components/VersusCard';
+import { OnlineLobby } from './components/OnlineLobby';
 import { AIDecisionInspector } from './components/AIDecisionInspector';
 import { RulebookModal } from './components/RulebookModal';
 import { GameOverModal } from './components/GameOverModal';
@@ -106,6 +107,11 @@ import { IntroLoadingScreen } from './components/IntroLoadingScreen';
 import { TelemetrySidebar } from './components/TelemetrySidebar';
 import { useDeviceLayout, readTouchPrimary } from './hooks/useDeviceLayout';
 import { enterImmersive, exitImmersive, isFullscreen, canFullscreen } from './game/display';
+import {
+  send as netSend, getRole as netGetRole, isConnected as netIsConnected,
+  cleanup as netCleanup, setMessageHandler as netSetMessageHandler,
+  type NetInput, type NetMessage
+} from './game/net';
 import {
   GraduationCap, Play, Pause, MapIcon, X,
   RotateCw, Maximize2, PanelRightClose, PanelRightOpen,
@@ -132,6 +138,11 @@ export default function App() {
     () => POLITICIANS.find(p => p.id === saved.fighterId) ?? POLITICIANS[0]
   );
   const [is2PlayerMode, setIs2PlayerMode] = useState(saved.twoPlayer ?? false);
+  // Online multiplayer state
+  const [isOnlineLobbyOpen, setIsOnlineLobbyOpen] = useState(false);
+  const [onlineRole, setOnlineRole] = useState<'host' | 'guest' | null>(null);
+  const remoteInputRef = useRef<NetInput>({ left: 0, right: 0, jump: 0, block: 0, strike: 0, special: 0, superMove: 0, pickupLine: 0, kick: 0 });
+  const netFrameCountRef = useRef(0);
   // Versus card (F34): 'pick' = Player 2 chooses a fighter, 'vs' = the matchup is shown for a moment before the bell.
   const [vs, setVs] = useState<VsState | null>(null);
   // F55: while the VS card is up, start loading both fighters' 3D models so the match opens with the real bodies
@@ -453,10 +464,12 @@ export default function App() {
   const addFloatingText = (text: string, x: number, y: number, color: string) => combatAddFloatingText(getWorld(), text, x, y, color);
 
   // Start new match
-  const startMatch = (p1Politician: Politician, p2Politician: Politician) => {
+  const startMatch = (p1Politician: Politician, p2Politician: Politician, netRole?: 'host' | 'guest' | null) => {
+    const isOnline = !!netRole;
+    const p2IsAI = !is2PlayerMode && !isOnline;
     combatantsRef.current = {
       p1: createCombatant(p1Politician, 180, false),
-      p2: createCombatant(p2Politician, 620, !is2PlayerMode)
+      p2: createCombatant(p2Politician, 620, p2IsAI)
     };
     powerUpsRef.current = [];
     projectilesRef.current = [];
@@ -500,6 +513,39 @@ export default function App() {
     updateCoach(`Rule 1: Move left/right with [${primaryLabel('p1', 'left')}]/[${primaryLabel('p1', 'right')}] or Virtual Joystick into debate range.`, 1);
     addLog('me', `Parliamentary Session Commenced: ${p1Politician.name} vs ${p2Politician.name}.`);
     playSound(260, 0.3, 'triangle', 0.07, 200);
+
+    // Online: swap in the game-loop message handler
+    if (netRole) {
+      netSetMessageHandler((msg: NetMessage) => {
+        if (msg.type === 'input' && netRole === 'host') {
+          // Host receives guest's inputs for P2
+          const ri = remoteInputRef.current;
+          ri.left = msg.input.left; ri.right = msg.input.right;
+          ri.jump = msg.input.jump; ri.block = msg.input.block;
+          if (msg.input.strike) ri.strike = 1;
+          if (msg.input.special) ri.special = 1;
+          if (msg.input.superMove) ri.superMove = 1;
+          if (msg.input.pickupLine) ri.pickupLine = 1;
+          if (msg.input.kick) ri.kick = 1;
+        } else if (msg.type === 'state' && netRole === 'guest') {
+          // Guest receives state snapshots — apply to local combatants for rendering
+          const c = combatantsRef.current;
+          if (!c) return;
+          const apply = (target: Combatant, src: typeof msg.snapshot.p1) => {
+            target.x = src.x; target.y = src.y; target.vx = src.vx; target.vy = src.vy;
+            target.hp = src.hp; target.seats = src.seats; target.meter = src.meter;
+            target.blocking = src.blocking; target.stun = src.stun;
+            target.invincible = src.invincible; target.facing = src.facing;
+            target.atk = src.atk; target.thought = src.thought;
+          };
+          apply(c.p1, msg.snapshot.p1);
+          apply(c.p2, msg.snapshot.p2);
+          matchTimeRef.current = msg.snapshot.clock;
+        } else if (msg.type === 'gameover') {
+          // Host signalled game over
+        }
+      });
+    }
   };
 
   // Keyboard Event Listeners
@@ -753,8 +799,29 @@ export default function App() {
             if (isActive('p1', 'line', keysTapped)) p1.input.pickupLine = 1;
             if (isActive('p1', 'super', keysTapped)) p1.input.superMove = 1;
 
-            // Player 2 / AI Input Dispatch
-            if (is2PlayerMode) {
+            // Player 2 / AI / Online Input Dispatch
+            if (onlineRole === 'host' && netIsConnected()) {
+              // Host: read remote guest inputs for P2
+              const ri = remoteInputRef.current;
+              p2.input.left = ri.left; p2.input.right = ri.right;
+              p2.input.jump = ri.jump; p2.input.block = ri.block;
+              p2.input.strike = ri.strike; p2.input.special = ri.special;
+              p2.input.superMove = ri.superMove; p2.input.pickupLine = ri.pickupLine;
+              p2.input.kick = ri.kick;
+              // Clear one-shot actions after reading
+              ri.strike = 0; ri.special = 0; ri.superMove = 0; ri.pickupLine = 0; ri.kick = 0;
+            } else if (onlineRole === 'guest' && netIsConnected()) {
+              // Guest: send local P1 inputs to host (guest controls P2 on host's side)
+              const inp: NetInput = {
+                left: p1.input.left, right: p1.input.right,
+                jump: p1.input.jump, block: p1.input.block,
+                strike: p1.input.strike, special: p1.input.special,
+                superMove: p1.input.superMove, pickupLine: p1.input.pickupLine,
+                kick: p1.input.kick,
+              };
+              netSend({ type: 'input', input: inp });
+              // Guest doesn't run its own AI — just mirrors host state
+            } else if (is2PlayerMode) {
               const pd2 = padRef.current.p2;
               p2.input.left = isActive('p2', 'left', keysDown) || pd2.dx < -0.25 ? 1 : 0;
               p2.input.right = isActive('p2', 'right', keysDown) || pd2.dx > 0.25 ? 1 : 0;
@@ -1310,12 +1377,36 @@ export default function App() {
         ctx.restore();
       }
 
+      // Online: host sends state snapshot to guest every 3 frames
+      if (onlineRole === 'host' && netIsConnected() && combatantsRef.current) {
+        netFrameCountRef.current++;
+        if (netFrameCountRef.current % 3 === 0) {
+          const c = combatantsRef.current;
+          const snap = (f: Combatant) => ({
+            x: f.x, y: f.y, vx: f.vx, vy: f.vy,
+            hp: f.hp, seats: f.seats, meter: f.meter,
+            blocking: f.blocking, stun: f.stun, invincible: f.invincible,
+            facing: f.facing, atk: f.atk,
+            thought: f.thought, name: f.c.name, id: f.c.id,
+          });
+          netSend({ type: 'state', snapshot: {
+            p1: snap(c.p1), p2: snap(c.p2),
+            powerUps: powerUpsRef.current.map(pu => ({ x: pu.x, y: pu.y, type: pu.type, id: pu.id })),
+            particles: particlesRef.current.slice(0, 20).map(p => ({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, life: p.life, maxLife: p.maxLife, color: p.color, size: p.size })),
+            floats: floatingTextsRef.current.map(f => ({ x: f.x, y: f.y, text: f.text, color: f.color, life: f.life })),
+            projectiles: projectilesRef.current.map(pr => ({ x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy ?? 0, ownerId: pr.owner.c.id, kind: pr.kind })),
+            clock: matchTimeRef.current,
+            paused: isPausedRef.current,
+          }});
+        }
+      }
+
       animId = requestAnimationFrame(loop);
     };
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [gameState, is2PlayerMode, addLog, updateCoach, publishDecision]);
+  }, [gameState, is2PlayerMode, onlineRole, addLog, updateCoach, publishDecision]);
 
   const handleVirtualAction = (player: 1 | 2, action: PadAction) => {
     if (!combatantsRef.current || isPausedRef.current || cinematicRef.current) return;
@@ -1362,6 +1453,11 @@ export default function App() {
     hitStopCdRef.current = 0;
     setIsMobileTelemetryOpen(false); // a drawer left open must not reappear on the next match
     setVs(null);
+    // Clean up online connection if active
+    if (onlineRole) {
+      netCleanup();
+      setOnlineRole(null);
+    }
     setGameState('menu');
   };
 
@@ -1568,6 +1664,7 @@ export default function App() {
             is2PlayerMode={is2PlayerMode}
             onToggle2Player={setIs2PlayerMode}
             onOpenRulebook={openRulebook}
+            onOpenOnline={() => setIsOnlineLobbyOpen(true)}
             onReplayIntro={() => setIsLoadingIntro(true)}
             isForceRotated={isForceRotated}
             onToggleRotate={isTouchPrimary ? toggleRotate : undefined}
@@ -1591,6 +1688,19 @@ export default function App() {
             })}
             onTapCard={skipVersus}
             onBack={() => setVs(null)}
+          />
+        )}
+
+        {/* Online Multiplayer Lobby */}
+        {gameState === 'menu' && isOnlineLobbyOpen && (
+          <OnlineLobby
+            selectedPolitician={selectedPolitician}
+            onStartMatch={(p1, p2, role) => {
+              setOnlineRole(role);
+              setIsOnlineLobbyOpen(false);
+              startMatch(p1, p2, role);
+            }}
+            onBack={() => setIsOnlineLobbyOpen(false)}
           />
         )}
 

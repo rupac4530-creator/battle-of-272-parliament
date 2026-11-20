@@ -8,7 +8,7 @@ import { speakPoliticianVoice } from '../game/audio';
 import { INDIA_PATH, ISLANDS, CITIES, REGIONS, LEADER_LOC, proj } from '../game/indiaGeo';
 import {
   Landmark, Gamepad2, Users, BookOpen, Zap, Flame,
-  Mic, Volume2, Swords, Github, MapPin, Play, Sparkles, RotateCw, Maximize2
+  Mic, Volume2, Swords, Github, MapPin, Play, Sparkles, RotateCw, Maximize2, Wifi
 } from 'lucide-react';
 
 interface IndiaMapSelectProps {
@@ -18,6 +18,7 @@ interface IndiaMapSelectProps {
   is2PlayerMode: boolean;
   onToggle2Player: (is2P: boolean) => void;
   onOpenRulebook: () => void;
+  onOpenOnline?: () => void;
   onReplayIntro?: () => void;
   isForceRotated?: boolean;
   onToggleRotate?: () => void;
@@ -32,6 +33,7 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
   is2PlayerMode,
   onToggle2Player,
   onOpenRulebook,
+  onOpenOnline,
   onReplayIntro,
   isForceRotated = false,
   onToggleRotate,
@@ -242,6 +244,16 @@ export const IndiaMapSelect: React.FC<IndiaMapSelectProps> = ({
             >
               <Users size={13} /> {compact ? MAP_COMPACT.buttonLabels.twoPlayer : '2-Player Local PvP'}
             </button>
+            {onOpenOnline && (
+              <button
+                type="button"
+                onClick={onOpenOnline}
+                title="Play online with a friend using a room code"
+                className="tap-44 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-bold border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 glass text-[#ff9933] border-[#ff9933]/40 hover:bg-[#ff9933]/10"
+              >
+                <Wifi size={13} /> {compact ? 'Online' : 'Online PvP'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onOpenRulebook}
